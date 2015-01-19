@@ -34,6 +34,7 @@ using namespace std;
 SrsFileWriter::SrsFileWriter()
 {
     fd = -1;
+    pcr_packet_count=0;
 }
 
 SrsFileWriter::~SrsFileWriter()

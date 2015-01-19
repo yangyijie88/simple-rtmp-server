@@ -198,9 +198,10 @@ public:
 
         return ret;
     }
-    static int write_frame(SrsFileWriter* writer, SrsMpegtsFrame* frame, SrsBuffer* buffer)
+    static int write_frame(SrsFileWriter* writer, SrsMpegtsFrame* frame, SrsBuffer* buffer,bool is_video)
     {
         int ret = ERROR_SUCCESS;
+        int if_write_pcr=0;
         
         if (!buffer->bytes() || buffer->length() <= 0) {
             return ret;
@@ -231,9 +232,25 @@ public:
             // continuity_counter; //4bits
             *p++ = 0x10 | (frame->cc & 0x0f);
             
+            if(first&&frame->key&&is_video)
+			{
+				if_write_pcr=1;
+			}
+			else if(first&&is_video)
+			{
+				writer->pcr_packet_count++;
+				if(writer->pcr_packet_count>=3)
+				{
+					writer->pcr_packet_count=0;
+					if_write_pcr=1;
+				}
+			}
+
             if (first) {
                 first = false;
-                if (frame->key) {
+                if(if_write_pcr)
+                {
+                    if_write_pcr=0;
                     p[-1] |= 0x20; // Both Adaption and Payload
                     *p++ = 7;    // size
                     *p++ = 0x50; // random access + PCR
@@ -490,7 +507,7 @@ int SrsTSMuxer::write_audio(SrsMpegtsFrame* af, SrsBuffer* ab)
 {
     int ret = ERROR_SUCCESS;
     
-    if ((ret = SrsMpegtsWriter::write_frame(writer, af, ab)) != ERROR_SUCCESS) {
+    if ((ret = SrsMpegtsWriter::write_frame(writer, af, ab,false)) != ERROR_SUCCESS) {
         return ret;
     }
     
@@ -501,7 +518,7 @@ int SrsTSMuxer::write_video(SrsMpegtsFrame* vf, SrsBuffer* vb)
 {
     int ret = ERROR_SUCCESS;
     
-    if ((ret = SrsMpegtsWriter::write_frame(writer, vf, vb)) != ERROR_SUCCESS) {
+    if ((ret = SrsMpegtsWriter::write_frame(writer, vf, vb,true)) != ERROR_SUCCESS) {
         return ret;
     }
     
@@ -1090,11 +1107,14 @@ int SrsHlsCache::write_audio(SrsAvcAacCodec* codec, SrsHlsMuxer* muxer, int64_t 
     // pure audio again for audio disabled.
     // so we reap event when the audio incoming when segment overflow.
     // @see https://github.com/winlinvip/simple-rtmp-server/issues/151
-    if (muxer->is_segment_overflow()) {
-        if ((ret = reap_segment("audio", muxer, af->pts)) != ERROR_SUCCESS) {
-            return ret;
-        }
-    }
+
+
+
+//    if (muxer->is_segment_overflow()) {
+//        if ((ret = reap_segment("audio", muxer, af->pts)) != ERROR_SUCCESS) {
+//            return ret;
+//        }
+//    }
     
     return ret;
 }

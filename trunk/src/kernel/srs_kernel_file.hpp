@@ -39,6 +39,8 @@ class SrsFileWriter
 private:
     std::string _file;
     int fd;
+public :
+    int pcr_packet_count;
 public:
     SrsFileWriter();
     virtual ~SrsFileWriter();
