@@ -1102,12 +1102,14 @@ int SrsHlsCache::write_audio(SrsAvcAacCodec* codec, SrsHlsMuxer* muxer, int64_t 
     // pure audio again for audio disabled.
     // so we reap event when the audio incoming when segment overflow.
     // @see https://github.com/winlinvip/simple-rtmp-server/issues/151
-    if (muxer->is_segment_overflow()) {
-        if ((ret = reap_segment("audio", muxer, af->pts)) != ERROR_SUCCESS) {
-            return ret;
-        }
-    }
     
+    //however when audio reap the segments ,the idr may won't int the front
+//    if (muxer->is_segment_overflow()) {
+//        if ((ret = reap_segment("audio", muxer, af->pts)) != ERROR_SUCCESS) {
+//            return ret;
+//        }
+//    }
+
     return ret;
 }
     
