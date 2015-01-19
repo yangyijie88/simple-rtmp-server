@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -37,9 +37,11 @@ class SrsSharedPtrMessage;
 * when need to get some messages, for instance, from Consumer queue,
 * create a message array, whose msgs can used to accept the msgs,
 * then send each message and set to NULL.
-* @remark: when error, the message array will free the msg not sent out.
+*
+* @remark: user must free all msgs in array, for the SRS2.0 protocol stack
+*       provides an api to send messages, @see send_and_free_messages
 */
-class SrsSharedPtrMessageArray
+class SrsMessageArray
 {
 public:
     /**
@@ -48,16 +50,26 @@ public:
     * where send(msg) will always send and free it.
     */
     SrsSharedPtrMessage** msgs;
-    int size;
+    int max;
 public:
     /**
     * create msg array, initialize array to NULL ptrs.
     */
-    SrsSharedPtrMessageArray(int _size);
+    SrsMessageArray(int max_msgs);
     /**
     * free the msgs not sent out(not NULL).
     */
-    virtual ~SrsSharedPtrMessageArray();
+    virtual ~SrsMessageArray();
+public:
+    /**
+    * free specified count of messages.
+    */
+    virtual void free(int count);
+private:
+    /**
+    * zero initialize the message array.
+    */
+    virtual void zero(int count);
 };
 
 #endif

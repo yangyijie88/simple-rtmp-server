@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -40,7 +40,7 @@ class SrsResponse;
 class SrsSource;
 class SrsRefer;
 class SrsConsumer;
-class SrsMessage;
+class SrsCommonMessage;
 class SrsStSocket;
 #ifdef SRS_AUTO_HTTP_CALLBACK    
 class SrsHttpHooks;
@@ -49,12 +49,17 @@ class SrsBandwidth;
 class SrsKbps;
 class SrsRtmpClient;
 class SrsSharedPtrMessage;
+class SrsQueueRecvThread;
+class SrsPublishRecvThread;
+class SrsSecurity;
 
 /**
 * the client provides the main logic control for RTMP clients.
 */
 class SrsRtmpConn : public virtual SrsConnection, public virtual ISrsReloadHandler
 {
+    // for the thread to directly access any field of connection.
+    friend class SrsPublishRecvThread;
 private:
     SrsRequest* req;
     SrsResponse* res;
@@ -62,11 +67,19 @@ private:
     SrsRtmpServer* rtmp;
     SrsRefer* refer;
     SrsBandwidth* bandwidth;
+    SrsSecurity* security;
     // elapse duration in ms
     // for live play duration, for instance, rtmpdump to record.
     // @see https://github.com/winlinvip/simple-rtmp-server/issues/47
     int64_t duration;
     SrsKbps* kbps;
+    // the MR(merged-write) sleep time in ms.
+    int mw_sleep;
+    // the MR(merged-write) only enabled for play.
+    int mw_enabled;
+    // for realtime
+    // @see https://github.com/winlinvip/simple-rtmp-server/issues/257
+    bool realtime;
 public:
     SrsRtmpConn(SrsServer* srs_server, st_netfd_t client_stfd);
     virtual ~SrsRtmpConn();
@@ -77,6 +90,8 @@ protected:
 // interface ISrsReloadHandler
 public:
     virtual int on_reload_vhost_removed(std::string vhost);
+    virtual int on_reload_vhost_mw(std::string vhost);
+    virtual int on_reload_vhost_realtime(std::string vhost);
 // interface IKbpsDelta
 public:
     virtual int64_t get_send_bytes_delta();
@@ -88,12 +103,14 @@ private:
     virtual int stream_service_cycle();
     virtual int check_vhost();
     virtual int playing(SrsSource* source);
+    virtual int do_playing(SrsSource* source, SrsConsumer* consumer, SrsQueueRecvThread* trd);
     virtual int fmle_publishing(SrsSource* source);
-    virtual int do_fmle_publishing(SrsSource* source);
     virtual int flash_publishing(SrsSource* source);
-    virtual int do_flash_publishing(SrsSource* source);
-    virtual int process_publish_message(SrsSource* source, SrsMessage* msg, bool vhost_is_edge);
-    virtual int process_play_control_msg(SrsConsumer* consumer, SrsMessage* msg);
+    virtual int do_publishing(SrsSource* source, SrsPublishRecvThread* trd);
+    virtual int handle_publish_message(SrsSource* source, SrsCommonMessage* msg, bool is_fmle, bool vhost_is_edge);
+    virtual int process_publish_message(SrsSource* source, SrsCommonMessage* msg, bool vhost_is_edge);
+    virtual int process_play_control_msg(SrsConsumer* consumer, SrsCommonMessage* msg);
+    virtual void change_mw_sleep(int sleep_ms);
 private:
     virtual int check_edge_token_traverse_auth();
     virtual int connect_server(int origin_index, st_netfd_t* pstsock);

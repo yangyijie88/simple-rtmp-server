@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -58,8 +58,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define SRS_CONF_DEFAULT_DVR_PLAN SRS_CONF_DEFAULT_DVR_PLAN_SESSION
 #define SRS_CONF_DEFAULT_DVR_DURATION 30
 #define SRS_CONF_DEFAULT_TIME_JITTER "full"
-// in seconds, the live queue length.
-#define SRS_CONF_DEFAULT_QUEUE_LENGTH 30
 // in seconds, the paused queue length.
 #define SRS_CONF_DEFAULT_PAUSED_LENGTH 10
 // the interval in seconds for bandwidth check
@@ -67,8 +65,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // the interval in seconds for bandwidth check
 #define SRS_CONF_DEFAULT_BANDWIDTH_LIMIT_KBPS 1000
 
-#define SRS_CONF_DEFAULT_HTTP_MOUNT "/"
+#define SRS_CONF_DEFAULT_HTTP_MOUNT "[vhost]/"
+#define SRS_CONF_DEFAULT_HTTP_FLV_MOUNT "[vhost]/[app]/[stream].flv"
 #define SRS_CONF_DEFAULT_HTTP_DIR SRS_CONF_DEFAULT_HLS_PATH
+#define SRS_CONF_DEFAULT_HTTP_AUDIO_FAST_CACHE 30
 
 #define SRS_CONF_DEFAULT_HTTP_STREAM_PORT 8080
 #define SRS_CONF_DEFAULT_HTTP_API_PORT 1985
@@ -77,6 +77,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define SRS_CONF_DEFAULT_HTTP_HEAETBEAT_INTERVAL 9.9
 #define SRS_CONF_DEFAULT_HTTP_HEAETBEAT_URL "http://"SRS_CONSTS_LOCALHOST":8085/api/v1/servers"
 #define SRS_CONF_DEFAULT_HTTP_HEAETBEAT_SUMMARIES false
+
+#define SRS_CONF_DEFAULT_SECURITY_ENABLED false
 
 #define SRS_CONF_DEFAULT_STATS_NETWORK_DEVICE_INDEX 0
 
@@ -534,6 +536,29 @@ public:
     * @remark, default 60000.
     */
     virtual int                 get_chunk_size(std::string vhost);
+    /**
+    * whether mr is enabled for vhost.
+    * @param vhost, the vhost to get the mr.
+    */
+    virtual bool                get_mr_enabled(std::string vhost);
+    /**
+    * get the mr sleep time in ms for vhost.
+    * @param vhost, the vhost to get the mr sleep time.
+    */
+    // TODO: FIXME: add utest for mr config.
+    virtual int                 get_mr_sleep_ms(std::string vhost);
+    /**
+    * get the mw sleep time in ms for vhost.
+    * @param vhost, the vhost to get the mw sleep time.
+    */
+    // TODO: FIXME: add utest for mw config.
+    virtual int                 get_mw_sleep_ms(std::string vhost);
+    /**
+    * whether min latency mode enabled.
+    * @param vhost, the vhost to get the min_latency.
+    */
+    // TODO: FIXME: add utest for min_latency.
+    virtual bool                get_realtime_enabled(std::string vhost);
 private:
     /**
     * get the global chunk size.
@@ -587,6 +612,11 @@ public:
     * @return the on_stop callback directive, the args is the url to callback.
     */
     virtual SrsConfDirective*   get_vhost_on_stop(std::string vhost);
+    /**
+    * get the on_dvr callbacks of vhost.
+    * @return the on_dvr callback directive, the args is the url to callback.
+    */
+    virtual SrsConfDirective*   get_vhost_on_dvr(std::string vhost);
 // bwct(bandwidth check tool) section
 public:
     /**
@@ -638,6 +668,16 @@ public:
     * all clients connected to edge must be tranverse to origin to verify.
     */
     virtual bool                get_vhost_edge_token_traverse(std::string vhost);
+// vhost security section
+public:
+    /**
+    * whether the secrity of vhost enabled.
+    */
+    virtual bool                get_security_enabled(std::string vhost);
+    /**
+    * get the security rules.
+    */
+    virtual SrsConfDirective*   get_security_rules(std::string vhost);
 // vhost transcode section
 public:
     /**
@@ -755,7 +795,7 @@ public:
     * @remark, we will use some variable, for instance, [vhost] to substitude with vhost.
     */
     virtual std::string         get_engine_output(SrsConfDirective* engine);
-// ingest section
+// vhost ingest section
 public:
     /**
     * get the ingest directives of vhost.
@@ -916,20 +956,30 @@ public:
     */
     virtual bool                get_vhost_http_enabled(std::string vhost);
     /**
-    * get the http mount point for vhost,
-    * vhost can use sub dir of http.
-    * for example, http://server/vhost1/live/livestream
-    * where the vhost1 is mount point for vhost1.
+    * get the http mount point for vhost.
+    * for example, http://vhost/live/livestream
     */
     virtual std::string         get_vhost_http_mount(std::string vhost);
     /**
     * get the http dir for vhost.
-    * the http dir of vhost will mount to the mount point of vhost.
-    * for example, http://server/vhost1/live/livestream
-    * where the vhost1 is mount point for vhost1,
-    * and vhost1 dir is specified by this http dir.
+    * the path on disk for mount root of http vhost.
     */
     virtual std::string         get_vhost_http_dir(std::string vhost);
+// flv live streaming section
+public:
+    /**
+    * get whether vhost enabled http flv live stream
+    */
+    virtual bool                get_vhost_http_flv_enabled(std::string vhost);
+    /**
+    * get the fast cache duration for http audio live stream.
+    */
+    virtual double              get_vhost_http_flv_fast_cache(std::string vhost);
+    /**
+    * get the http flv live stream mount point for vhost.
+    * used to generate the flv stream mount path.
+    */
+    virtual std::string         get_vhost_http_flv_mount(std::string vhost);
 // http heartbeart section
 private:
     /**

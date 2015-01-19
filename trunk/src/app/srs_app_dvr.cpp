@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -27,6 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <fcntl.h>
 #include <sstream>
+#include <sys/time.h>
 using namespace std;
 
 #include <srs_app_config.hpp>
@@ -136,14 +137,97 @@ int SrsDvrPlan::open_new_segment()
     
     SrsRequest* req = _req;
     
-    // new flv file
-    std::stringstream path;
+    // the path in config, for example, 
+    //      /data/[vhost]/[app]/[stream]/[2006]/[01]/[02]/[15].[04].[05].[999].flv
+    std::string path_config = _srs_config->get_dvr_path(req->vhost);
     
-    path << _srs_config->get_dvr_path(req->vhost)
-        << "/" << req->app << "/" 
-        << req->stream << "." << srs_get_system_time_ms() << ".flv";
+    // add [stream].[timestamp].flv as filename for dir
+    if (path_config.find(".flv") != path_config.length() - 4) {
+        path_config += "/[stream].[timestamp].flv";
+    }
     
-    if ((ret = flv_open(req->get_stream_url(), path.str())) != ERROR_SUCCESS) {
+    // the flv file path
+    std::string path = path_config;
+    
+    // variable [vhost]
+    path = srs_string_replace(path, "[vhost]", req->vhost);
+    // variable [app]
+    path = srs_string_replace(path, "[app]", req->app);
+    // variable [stream]
+    path = srs_string_replace(path, "[stream]", req->stream);
+    
+    // date and time substitude
+    // clock time
+    timeval tv;
+    if (gettimeofday(&tv, NULL) == -1) {
+        return ERROR_SYSTEM_TIME;
+    }
+    
+    // to calendar time
+    struct tm* tm;
+    if ((tm = localtime(&tv.tv_sec)) == NULL) {
+        return ERROR_SYSTEM_TIME;
+    }
+    
+    // the buffer to format the date and time.
+    char buf[64];
+    
+    // [2006], replace with current year.
+    if (true) {
+        snprintf(buf, sizeof(buf), "%d", 1900 + tm->tm_year);
+        path = srs_string_replace(path, "[2006]", buf);
+    }
+    // [2006], replace with current year.
+    if (true) {
+        snprintf(buf, sizeof(buf), "%d", 1900 + tm->tm_year);
+        path = srs_string_replace(path, "[2006]", buf);
+    }
+    // [01], replace this const to current month.
+    if (true) {
+        snprintf(buf, sizeof(buf), "%d", 1 + tm->tm_mon);
+        path = srs_string_replace(path, "[01]", buf);
+    }
+    // [02], replace this const to current date.
+    if (true) {
+        snprintf(buf, sizeof(buf), "%d", tm->tm_mday);
+        path = srs_string_replace(path, "[02]", buf);
+    }
+    // [15], replace this const to current hour.
+    if (true) {
+        snprintf(buf, sizeof(buf), "%d", tm->tm_hour);
+        path = srs_string_replace(path, "[15]", buf);
+    }
+    // [04], repleace this const to current minute.
+    if (true) {
+        snprintf(buf, sizeof(buf), "%d", tm->tm_min);
+        path = srs_string_replace(path, "[04]", buf);
+    }
+    // [05], repleace this const to current second.
+    if (true) {
+        snprintf(buf, sizeof(buf), "%d", tm->tm_sec);
+        path = srs_string_replace(path, "[05]", buf);
+    }
+    // [999], repleace this const to current millisecond.
+    if (true) {
+        snprintf(buf, sizeof(buf), "%03d", (int)(tv.tv_usec / 1000));
+        path = srs_string_replace(path, "[999]", buf);
+    }
+    // [timestamp],replace this const to current UNIX timestamp in ms.
+    if (true) {
+        int64_t now_us = ((int64_t)tv.tv_sec) * 1000 * 1000 + (int64_t)tv.tv_usec;
+        snprintf(buf, sizeof(buf), "%"PRId64, now_us / 1000);
+        path = srs_string_replace(path, "[timestamp]", buf);
+    }
+    
+    // create dir first.
+    std::string dir = path.substr(0, path.rfind("/"));
+    if ((ret = srs_create_dir_recursively(dir)) != ERROR_SUCCESS) {
+        srs_error("create dir=%s failed. ret=%d", dir.c_str(), ret);
+        return ret;
+    }
+    srs_info("create dir=%s ok", dir.c_str());
+    
+    if ((ret = flv_open(req->get_stream_url(), path)) != ERROR_SUCCESS) {
         return ret;
     }
     dvr_enabled = true;
@@ -189,20 +273,23 @@ int SrsDvrPlan::on_meta_data(SrsOnMetaDataPacket* metadata)
     }
     SrsAutoFree(char, payload);
     
-    if ((ret = enc->write_metadata(payload, size)) != ERROR_SUCCESS) {
+    if ((ret = enc->write_metadata(18, payload, size)) != ERROR_SUCCESS) {
         return ret;
     }
     
     return ret;
 }
 
-int SrsDvrPlan::on_audio(SrsSharedPtrMessage* audio)
+int SrsDvrPlan::on_audio(SrsSharedPtrMessage* __audio)
 {
     int ret = ERROR_SUCCESS;
     
     if (!dvr_enabled) {
         return ret;
     }
+
+    SrsSharedPtrMessage* audio = __audio->copy();
+    SrsAutoFree(SrsSharedPtrMessage, audio);
     
     if ((jitter->correct(audio, 0, 0, jitter_algorithm)) != ERROR_SUCCESS) {
         return ret;
@@ -210,7 +297,7 @@ int SrsDvrPlan::on_audio(SrsSharedPtrMessage* audio)
     
     char* payload = audio->payload;
     int size = audio->size;
-    int64_t timestamp = filter_timestamp(audio->header.timestamp);
+    int64_t timestamp = filter_timestamp(audio->timestamp);
     if ((ret = enc->write_audio(timestamp, payload, size)) != ERROR_SUCCESS) {
         return ret;
     }
@@ -222,13 +309,16 @@ int SrsDvrPlan::on_audio(SrsSharedPtrMessage* audio)
     return ret;
 }
 
-int SrsDvrPlan::on_video(SrsSharedPtrMessage* video)
+int SrsDvrPlan::on_video(SrsSharedPtrMessage* __video)
 {
     int ret = ERROR_SUCCESS;
     
     if (!dvr_enabled) {
         return ret;
     }
+
+    SrsSharedPtrMessage* video = __video->copy();
+    SrsAutoFree(SrsSharedPtrMessage, video);
     
     char* payload = video->payload;
     int size = video->size;
@@ -256,7 +346,7 @@ int SrsDvrPlan::on_video(SrsSharedPtrMessage* video)
         return ret;
     }
     
-    int32_t timestamp = filter_timestamp(video->header.timestamp);
+    int32_t timestamp = filter_timestamp(video->timestamp);
     if ((ret = enc->write_video(timestamp, payload, size)) != ERROR_SUCCESS) {
         return ret;
     }
@@ -314,6 +404,30 @@ int SrsDvrPlan::flv_close()
         return ret;
     }
     
+#ifdef SRS_AUTO_HTTP_CALLBACK
+    SrsRequest* req = _req;
+    if (_srs_config->get_vhost_http_hooks_enabled(req->vhost)) {
+        // HTTP: on_dvr 
+        SrsConfDirective* on_dvr = _srs_config->get_vhost_on_dvr(req->vhost);
+        if (!on_dvr) {
+            srs_info("ignore the empty http callback: on_dvr");
+            return ret;
+        }
+        
+        int connection_id = _srs_context->get_id();
+        std::string ip = req->ip;
+        std::string cwd = _srs_config->cwd();
+        std::string file = segment->path;
+        for (int i = 0; i < (int)on_dvr->args.size(); i++) {
+            std::string url = on_dvr->args.at(i);
+            if ((ret = SrsHttpHooks::on_dvr(url, connection_id, ip, req, cwd, file)) != ERROR_SUCCESS) {
+                srs_error("hook client on_dvr failed. url=%s, ret=%d", url.c_str(), ret);
+                return ret;
+            }
+        }
+    }
+#endif
+
     return ret;
 }
 
@@ -326,20 +440,20 @@ int SrsDvrPlan::update_duration(SrsSharedPtrMessage* msg)
     
     // set the segment starttime at first time
     if (segment->starttime < 0) {
-        segment->starttime = msg->header.timestamp;
+        segment->starttime = msg->timestamp;
     }
     
     // no previous packet or timestamp overflow.
-    if (segment->stream_previous_pkt_time < 0 || segment->stream_previous_pkt_time > msg->header.timestamp) {
-        segment->stream_previous_pkt_time = msg->header.timestamp;
+    if (segment->stream_previous_pkt_time < 0 || segment->stream_previous_pkt_time > msg->timestamp) {
+        segment->stream_previous_pkt_time = msg->timestamp;
     }
     
     // collect segment and stream duration, timestamp overflow is ok.
-    segment->duration += msg->header.timestamp - segment->stream_previous_pkt_time;
-    segment->stream_duration += msg->header.timestamp - segment->stream_previous_pkt_time;
+    segment->duration += msg->timestamp - segment->stream_previous_pkt_time;
+    segment->stream_duration += msg->timestamp - segment->stream_previous_pkt_time;
     
     // update previous packet time
-    segment->stream_previous_pkt_time = msg->header.timestamp;
+    segment->stream_previous_pkt_time = msg->timestamp;
     
     return ret;
 }
@@ -482,7 +596,7 @@ int SrsDvrSegmentPlan::update_duration(SrsSharedPtrMessage* msg)
     // when wait keyframe, ignore if no frame arrived.
     // @see https://github.com/winlinvip/simple-rtmp-server/issues/177
     if (_srs_config->get_dvr_wait_keyframe(_req->vhost)) {
-        if (!msg->header.is_video()) {
+        if (!msg->is_video()) {
             return ret;
         }
         
@@ -571,30 +685,14 @@ int SrsDvr::on_meta_data(SrsOnMetaDataPacket* metadata)
     return ret;
 }
 
-int SrsDvr::on_audio(SrsSharedPtrMessage* audio)
+int SrsDvr::on_audio(SrsSharedPtrMessage* __audio)
 {
-    int ret = ERROR_SUCCESS;
-    
-    SrsAutoFree(SrsSharedPtrMessage, audio);
-    
-    if ((ret = plan->on_audio(audio)) != ERROR_SUCCESS) {
-        return ret;
-    }
-    
-    return ret;
+    return plan->on_audio(__audio);
 }
 
-int SrsDvr::on_video(SrsSharedPtrMessage* video)
+int SrsDvr::on_video(SrsSharedPtrMessage* __video)
 {
-    int ret = ERROR_SUCCESS;
-    
-    SrsAutoFree(SrsSharedPtrMessage, video);
-    
-    if ((ret = plan->on_video(video)) != ERROR_SUCCESS) {
-        return ret;
-    }
-    
-    return ret;
+    return plan->on_video(__video);
 }
 
 #endif

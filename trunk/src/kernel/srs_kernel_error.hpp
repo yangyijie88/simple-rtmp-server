@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -30,8 +30,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <srs_core.hpp>
 
-// success, ok
+// for srs-librtmp, @see https://github.com/winlinvip/simple-rtmp-server/issues/213
+#ifndef _WIN32
 #define ERROR_SUCCESS                       0
+#endif
 
 ///////////////////////////////////////////////////////
 // system error.
@@ -58,7 +60,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define ERROR_SYSTEM_PACKET_INVALID         1019
 #define ERROR_SYSTEM_CLIENT_INVALID         1020
 #define ERROR_SYSTEM_ASSERT_FAILED          1021
-#define ERROR_SYSTEM_SIZE_NEGATIVE          1022
+#define ERROR_READER_BUFFER_OVERFLOW        1022
 #define ERROR_SYSTEM_CONFIG_INVALID         1023
 #define ERROR_SYSTEM_CONFIG_DIRECTIVE       1024
 #define ERROR_SYSTEM_CONFIG_BLOCK_START     1025
@@ -88,6 +90,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define ERROR_SYSTEM_FILE_SEEK              1049
 #define ERROR_SYSTEM_IO_INVALID             1050
 #define ERROR_ST_EXCEED_THREADS             1051
+#define ERROR_SYSTEM_SECURITY               1052
+#define ERROR_SYSTEM_SECURITY_DENY          1053
+#define ERROR_SYSTEM_SECURITY_ALLOW         1054
+#define ERROR_SYSTEM_TIME                   1055
+#define ERROR_SYSTEM_DIR_EXISTS             1056
+#define ERROR_SYSTEM_CREATE_DIR             1057
 
 ///////////////////////////////////////////////////////
 // RTMP protocol error.
@@ -132,6 +140,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define ERROR_OpenSslSha256DigestSize       2037
 #define ERROR_OpenSslGetPeerPublicKey       2038
 #define ERROR_OpenSslComputeSharedKey       2039
+#define ERROR_RTMP_MIC_CHUNKSIZE_CHANGED    2040
+#define ERROR_RTMP_MIC_CACHE_OVERFLOW       2041
 //                                           
 // system control message, 
 // not an error, but special control logic.
@@ -145,7 +155,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ///////////////////////////////////////////////////////
 #define ERROR_HLS_METADATA                  3000
 #define ERROR_HLS_DECODE_ERROR              3001
-#define ERROR_HLS_CREATE_DIR                3002
+//#define ERROR_HLS_CREATE_DIR                3002
 #define ERROR_HLS_OPEN_FAILED               3003
 #define ERROR_HLS_WRITE_FAILED              3004
 #define ERROR_HLS_AAC_FRAME_LENGTH          3005
@@ -183,6 +193,29 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define ERROR_KERNEL_FLV_STREAM_CLOSED      3037
 #define ERROR_KERNEL_STREAM_INIT            3038
 #define ERROR_EDGE_VHOST_REMOVED            3039
+#define ERROR_HLS_AVC_TRY_OTHERS            3040
+#define ERROR_H264_API_NO_PREFIXED          3041
+#define ERROR_FLV_INVALID_VIDEO_TAG         3042
+#define ERROR_H264_DROP_BEFORE_SPS_PPS      3043
+#define ERROR_H264_DUPLICATED_SPS           3044
+#define ERROR_H264_DUPLICATED_PPS           3045
+#define ERROR_AAC_REQUIRED_ADTS             3046
+#define ERROR_AAC_ADTS_HEADER               3047
+#define ERROR_AAC_DATA_INVALID              3048
+
+///////////////////////////////////////////////////////
+// HTTP protocol error.
+///////////////////////////////////////////////////////
+#define ERROR_HTTP_PATTERN_EMPTY            4000
+#define ERROR_HTTP_PATTERN_DUPLICATED       4001
+#define ERROR_HTTP_URL_NOT_CLEAN            4002
+#define ERROR_HTTP_CONTENT_LENGTH           4003
+#define ERROR_HTTP_LIVE_STREAM_EXT          4004
+#define ERROR_HTTP_STATUS_INVLIAD           4005
+#define ERROR_KERNEL_AAC_STREAM_CLOSED      4006
+#define ERROR_AAC_DECODE_ERROR              4007
+#define ERROR_KERNEL_MP3_STREAM_CLOSED      4008
+#define ERROR_MP3_DECODE_ERROR              4009
 
 /**
 * whether the error code is an system control error.

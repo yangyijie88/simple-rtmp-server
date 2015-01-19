@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -54,8 +54,9 @@ void ISrsThreadHandler::on_thread_stop()
 {
 }
 
-SrsThread::SrsThread(ISrsThreadHandler* thread_handler, int64_t interval_us, bool joinable)
+SrsThread::SrsThread(const char* name, ISrsThreadHandler* thread_handler, int64_t interval_us, bool joinable)
 {
+    _name = name;
     handler = thread_handler;
     cycle_interval_us = interval_us;
     
@@ -86,7 +87,7 @@ int SrsThread::start()
     int ret = ERROR_SUCCESS;
     
     if(tid) {
-        srs_info("thread already running.");
+        srs_info("thread %s already running.", _name);
         return ret;
     }
     
@@ -141,7 +142,7 @@ void SrsThread::thread_cycle()
     int ret = ERROR_SUCCESS;
     
     _srs_context->generate_id();
-    srs_info("thread cycle start");
+    srs_info("thread %s cycle start", _name);
     
     _cid = _srs_context->get_id();
     
@@ -155,33 +156,39 @@ void SrsThread::thread_cycle()
     
     while (loop) {
         if ((ret = handler->on_before_cycle()) != ERROR_SUCCESS) {
-            srs_warn("thread on before cycle failed, ignored and retry, ret=%d", ret);
+            srs_warn("thread %s on before cycle failed, ignored and retry, ret=%d", _name, ret);
             goto failed;
         }
-        srs_info("thread on before cycle success");
+        srs_info("thread %s on before cycle success");
         
         if ((ret = handler->cycle()) != ERROR_SUCCESS) {
-            srs_warn("thread cycle failed, ignored and retry, ret=%d", ret);
+            if (!srs_is_client_gracefully_close(ret)) {
+                srs_warn("thread %s cycle failed, ignored and retry, ret=%d", _name, ret);
+            }
             goto failed;
         }
-        srs_info("thread cycle success");
+        srs_info("thread %s cycle success", _name);
         
         if ((ret = handler->on_end_cycle()) != ERROR_SUCCESS) {
-            srs_warn("thread on end cycle failed, ignored and retry, ret=%d", ret);
+            srs_warn("thread %s on end cycle failed, ignored and retry, ret=%d", _name, ret);
             goto failed;
         }
-        srs_info("thread on end cycle success");
+        srs_info("thread %s on end cycle success", _name);
 
 failed:
         if (!loop) {
             break;
         }
         
-        st_usleep(cycle_interval_us);
+        // to improve performance, donot sleep when interval is zero.
+        // @see: https://github.com/winlinvip/simple-rtmp-server/issues/237
+        if (cycle_interval_us != 0) {
+            st_usleep(cycle_interval_us);
+        }
     }
     
     handler->on_thread_stop();
-    srs_info("thread cycle finished");
+    srs_info("thread %s cycle finished", _name);
 }
 
 void* SrsThread::thread_fun(void* arg)

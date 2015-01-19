@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -38,250 +38,25 @@ using namespace std;
 #include <srs_app_st_socket.hpp>
 #include <srs_core_autofree.hpp>
 #include <srs_app_config.hpp>
-#include <srs_kernel_flv.hpp>
 #include <srs_kernel_utility.hpp>
 #include <srs_kernel_file.hpp>
+#include <srs_kernel_flv.hpp>
+#include <srs_protocol_rtmp.hpp>
+#include <srs_app_source.hpp>
+#include <srs_protocol_msg_array.hpp>
+#include <srs_kernel_aac.hpp>
+#include <srs_kernel_mp3.hpp>
 
-#define SRS_HTTP_DEFAULT_PAGE "index.html"
-
-SrsHttpRoot::SrsHttpRoot()
-{
-    // TODO: FIXME: support reload vhosts.
-}
-
-SrsHttpRoot::~SrsHttpRoot()
-{
-}
-
-int SrsHttpRoot::initialize()
-{
-    int ret = ERROR_SUCCESS;
-    
-    bool default_root_exists = false;
-    
-    // add other virtual path
-    SrsConfDirective* root = _srs_config->get_root();
-    for (int i = 0; i < (int)root->directives.size(); i++) {
-        SrsConfDirective* conf = root->at(i);
-        
-        if (!conf->is_vhost()) {
-            continue;
-        }
-        
-        std::string vhost = conf->arg0();
-        if (!_srs_config->get_vhost_http_enabled(vhost)) {
-            continue;
-        }
-        
-        std::string mount = _srs_config->get_vhost_http_mount(vhost);
-        std::string dir = _srs_config->get_vhost_http_dir(vhost);
-        
-        handlers.push_back(new SrsHttpVhost(vhost, mount, dir));
-        
-        if (mount == "/") {
-            default_root_exists = true;
-        }
-    }
-    
-    if (!default_root_exists) {
-        // add root
-        handlers.push_back(new SrsHttpVhost(
-            "__http__", "/", _srs_config->get_http_stream_dir()));
-    }
-    
-    return ret;
-}
-
-int SrsHttpRoot::best_match(const char* path, int length, SrsHttpHandlerMatch** ppmatch)
-{
-    int ret = ERROR_SUCCESS;
-        
-    // find the best matched child handler.
-    std::vector<SrsHttpHandler*>::iterator it;
-    for (it = handlers.begin(); it != handlers.end(); ++it) {
-        SrsHttpHandler* h = *it;
-        
-        // search all child handlers.
-        h->best_match(path, length, ppmatch);
-    }
-    
-    // if already matched by child, return.
-    if (*ppmatch) {
-        return ret;
-    }
-    
-    // not matched, error.
-    return ERROR_HTTP_HANDLER_MATCH_URL;
-}
-
-bool SrsHttpRoot::is_handler_valid(SrsHttpMessage* /*req*/, int& status_code, std::string& reason_phrase)
-{
-    status_code = SRS_CONSTS_HTTP_InternalServerError;
-    reason_phrase = SRS_CONSTS_HTTP_InternalServerError_str;
-    
-    return false;
-}
-
-int SrsHttpRoot::do_process_request(SrsStSocket* /*skt*/, SrsHttpMessage* /*req*/)
-{
-    int ret = ERROR_SUCCESS;
-    return ret;
-}
-
-SrsHttpVhost::SrsHttpVhost(std::string vhost, std::string mount, std::string dir)
-{
-    _vhost = vhost;
-    _mount = mount;
-    _dir = dir;
-}
-
-SrsHttpVhost::~SrsHttpVhost()
+SrsVodStream::SrsVodStream(string root_dir)
+    : SrsGoHttpFileServer(root_dir)
 {
 }
 
-bool SrsHttpVhost::can_handle(const char* path, int length, const char** /*pchild*/)
+SrsVodStream::~SrsVodStream()
 {
-    return srs_path_like(_mount.c_str(), path, length);
 }
 
-bool SrsHttpVhost::is_handler_valid(SrsHttpMessage* req, int& status_code, std::string& reason_phrase) 
-{
-    std::string fullpath = get_request_file(req);
-    
-    if (::access(fullpath.c_str(), F_OK | R_OK) < 0) {
-        srs_warn("check file %s does not exists", fullpath.c_str());
-        
-        status_code = SRS_CONSTS_HTTP_NotFound;
-        reason_phrase = SRS_CONSTS_HTTP_NotFound_str;
-        return false;
-    }
-    
-    return true;
-}
-
-int SrsHttpVhost::do_process_request(SrsStSocket* skt, SrsHttpMessage* req)
-{
-    std::string fullpath = get_request_file(req);
-    
-    // TODO: FIXME: support mp4, @see https://github.com/winlinvip/simple-rtmp-server/issues/174
-    if (srs_string_ends_with(fullpath, ".ts")) {
-        return response_ts_file(skt, req, fullpath);
-    } else if (srs_string_ends_with(fullpath, ".flv") || srs_string_ends_with(fullpath, ".fhv")) {
-        std::string start = req->query_get("start");
-        if (start.empty()) {
-            return response_flv_file(skt, req, fullpath);
-        }
-
-        int offset = ::atoi(start.c_str());
-        if (offset <= 0) {
-            return response_flv_file(skt, req, fullpath);
-        }
-        
-        return response_flv_file2(skt, req, fullpath, offset);
-    }
-
-    return response_regular_file(skt, req, fullpath);
-}
-
-int SrsHttpVhost::response_regular_file(SrsStSocket* skt, SrsHttpMessage* req, string fullpath)
-{
-    int ret = ERROR_SUCCESS;
-
-    SrsFileReader fs;
-    
-    if ((ret = fs.open(fullpath)) != ERROR_SUCCESS) {
-        srs_warn("open file %s failed, ret=%d", fullpath.c_str(), ret);
-        return ret;
-    }
-
-    int64_t length = fs.filesize();
-    
-    char* buf = new char[length];
-    SrsAutoFree(char, buf);
-    
-    if ((ret = fs.read(buf, length, NULL)) != ERROR_SUCCESS) {
-        srs_warn("read file %s failed, ret=%d", fullpath.c_str(), ret);
-        return ret;
-    }
-    
-    std::string str;
-    str.append(buf, length);
-    
-    if (srs_string_ends_with(fullpath, ".ts")) {
-        return res_mpegts(skt, req, str);
-    } else if (srs_string_ends_with(fullpath, ".m3u8")) {
-        return res_m3u8(skt, req, str);
-    } else if (srs_string_ends_with(fullpath, ".xml")) {
-        return res_xml(skt, req, str);
-    } else if (srs_string_ends_with(fullpath, ".js")) {
-        return res_javascript(skt, req, str);
-    } else if (srs_string_ends_with(fullpath, ".json")) {
-        return res_json(skt, req, str);
-    } else if (srs_string_ends_with(fullpath, ".swf")) {
-        return res_swf(skt, req, str);
-    } else if (srs_string_ends_with(fullpath, ".css")) {
-        return res_css(skt, req, str);
-    } else if (srs_string_ends_with(fullpath, ".ico")) {
-        return res_ico(skt, req, str);
-    } else {
-        return res_text(skt, req, str);
-    }
-    
-    return ret;
-}
-
-int SrsHttpVhost::response_flv_file(SrsStSocket* skt, SrsHttpMessage* req, string fullpath)
-{
-    int ret = ERROR_SUCCESS;
-
-    SrsFileReader fs;
-    
-    // TODO: FIXME: use more advance cache.
-    if ((ret = fs.open(fullpath)) != ERROR_SUCCESS) {
-        srs_warn("open file %s failed, ret=%d", fullpath.c_str(), ret);
-        return ret;
-    }
-
-    int64_t length = fs.filesize();
-
-    // write http header for ts.
-    std::stringstream ss;
-
-    res_status_line(ss)->res_content_type_flv(ss)
-        ->res_content_length(ss, (int)length);
-        
-    if (req->requires_crossdomain()) {
-        res_enable_crossdomain(ss);
-    }
-    
-    res_header_eof(ss);
-    
-    // flush http header to peer
-    if ((ret = res_flush(skt, ss)) != ERROR_SUCCESS) {
-        return ret;
-    }
-    
-    // write body.
-    int64_t left = length;
-    char* buf = req->http_ts_send_buffer();
-    
-    while (left > 0) {
-        ssize_t nread = -1;
-        if ((ret = fs.read(buf, __SRS_HTTP_TS_SEND_BUFFER_SIZE, &nread)) != ERROR_SUCCESS) {
-            srs_warn("read file %s failed, ret=%d", fullpath.c_str(), ret);
-            break;
-        }
-        
-        left -= nread;
-        if ((ret = skt->write(buf, nread, NULL)) != ERROR_SUCCESS) {
-            break;
-        }
-    }
-    
-    return ret;
-}
-
-int SrsHttpVhost::response_flv_file2(SrsStSocket* skt, SrsHttpMessage* req, string fullpath, int offset)
+int SrsVodStream::serve_flv_stream(ISrsGoHttpResponseWriter* w, SrsHttpMessage* r, string fullpath, int offset)
 {
     int ret = ERROR_SUCCESS;
     
@@ -340,148 +115,648 @@ int SrsHttpVhost::response_flv_file2(SrsStSocket* skt, SrsHttpMessage* req, stri
     int64_t left = fs.filesize() - offset;
 
     // write http header for ts.
-    std::stringstream ss;
-
-    res_status_line(ss)->res_content_type_flv(ss)
-        ->res_content_length(ss, (int)(sizeof(flv_header) + sh_size + left));
-        
-    if (req->requires_crossdomain()) {
-        res_enable_crossdomain(ss);
-    }
+    w->header()->set_content_length((int)(sizeof(flv_header) + sh_size + left));
+    w->header()->set_content_type("video/x-flv");
     
-    res_header_eof(ss);
-    
-    // flush http header to peer
-    if ((ret = res_flush(skt, ss)) != ERROR_SUCCESS) {
+    // write flv header and sequence header.
+    if ((ret = w->write(flv_header, sizeof(flv_header))) != ERROR_SUCCESS) {
         return ret;
     }
-    
-    if ((ret = skt->write(flv_header, sizeof(flv_header), NULL)) != ERROR_SUCCESS) {
-        return ret;
-    }
-    if (sh_size > 0 && (ret = skt->write(sh_data, sh_size, NULL)) != ERROR_SUCCESS) {
+    if (sh_size > 0 && (ret = w->write(sh_data, sh_size)) != ERROR_SUCCESS) {
         return ret;
     }
     
     // write body.
-    char* buf = req->http_ts_send_buffer();
     if ((ret = ffd.lseek(offset)) != ERROR_SUCCESS) {
         return ret;
     }
     
     // send data
-    while (left > 0) {
-        ssize_t nread = -1;
-        if ((ret = fs.read(buf, __SRS_HTTP_TS_SEND_BUFFER_SIZE, &nread)) != ERROR_SUCCESS) {
-            return ret;
-        }
-        
-        left -= nread;
-        if ((ret = skt->write(buf, nread, NULL)) != ERROR_SUCCESS) {
-            return ret;
-        }
+    if ((ret = copy(w, &fs, r, left)) != ERROR_SUCCESS) {
+        srs_warn("read flv=%s size=%d failed, ret=%d", fullpath.c_str(), left, ret);
+        return ret;
     }
     
     return ret;
 }
 
-int SrsHttpVhost::response_ts_file(SrsStSocket* skt, SrsHttpMessage* req, string fullpath)
+SrsStreamCache::SrsStreamCache(SrsSource* s, SrsRequest* r)
+{
+    req = r->copy();
+    source = s;
+    queue = new SrsMessageQueue(true);
+    pthread = new SrsThread("http-stream", this, 0, false);
+}
+
+SrsStreamCache::~SrsStreamCache()
+{
+    pthread->stop();
+    srs_freep(pthread);
+    
+    srs_freep(queue);
+    srs_freep(req);
+}
+
+int SrsStreamCache::start()
+{
+    return pthread->start();
+}
+
+int SrsStreamCache::dump_cache(SrsConsumer* consumer)
 {
     int ret = ERROR_SUCCESS;
     
-    SrsFileReader fs;
-    
-    // TODO: FIXME: use more advance cache.
-    if ((ret = fs.open(fullpath)) != ERROR_SUCCESS) {
-        srs_warn("open file %s failed, ret=%d", fullpath.c_str(), ret);
-        return ret;
-    }
-
-    int64_t length = fs.filesize();
-
-    // write http header for ts.
-    std::stringstream ss;
-
-    res_status_line(ss)->res_content_type_mpegts(ss)
-        ->res_content_length(ss, (int)length);
-        
-    if (req->requires_crossdomain()) {
-        res_enable_crossdomain(ss);
-    }
-    
-    res_header_eof(ss);
-    
-    // flush http header to peer
-    if ((ret = res_flush(skt, ss)) != ERROR_SUCCESS) {
+    if ((ret = queue->dump_packets(consumer, false, 0, 0, SrsRtmpJitterAlgorithmOFF)) != ERROR_SUCCESS) {
         return ret;
     }
     
-    // write body.
-    int64_t left = length;
-    char* buf = req->http_ts_send_buffer();
+    srs_trace("http: dump cache %d msgs, duration=%dms, cache=%.2fs", 
+        queue->size(), queue->duration(), _srs_config->get_vhost_http_flv_fast_cache(req->vhost));
     
-    while (left > 0) {
-        ssize_t nread = -1;
-        if ((ret = fs.read(buf, __SRS_HTTP_TS_SEND_BUFFER_SIZE, &nread)) != ERROR_SUCCESS) {
-            srs_warn("read file %s failed, ret=%d", fullpath.c_str(), ret);
-            break;
+    return ret;
+}
+
+int SrsStreamCache::cycle()
+{
+    int ret = ERROR_SUCCESS;
+    
+    SrsConsumer* consumer = NULL;
+    if ((ret = source->create_consumer(consumer, false, false, true)) != ERROR_SUCCESS) {
+        srs_error("http: create consumer failed. ret=%d", ret);
+        return ret;
+    }
+    SrsAutoFree(SrsConsumer, consumer);
+    
+    SrsMessageArray msgs(SRS_PERF_MW_MSGS);
+    // TODO: FIMXE: add pithy print.
+    
+    // TODO: FIXME: support reload.
+    queue->set_queue_size(_srs_config->get_vhost_http_flv_fast_cache(req->vhost));
+    
+    while (true) {
+        // get messages from consumer.
+        // each msg in msgs.msgs must be free, for the SrsMessageArray never free them.
+        int count = 0;
+        if ((ret = consumer->dump_packets(&msgs, count)) != ERROR_SUCCESS) {
+            srs_error("http: get messages from consumer failed. ret=%d", ret);
+            return ret;
         }
         
-        left -= nread;
-        if ((ret = skt->write(buf, nread, NULL)) != ERROR_SUCCESS) {
-            break;
+        if (count <= 0) {
+            srs_info("http: mw sleep %dms for no msg", mw_sleep);
+            // directly use sleep, donot use consumer wait.
+            st_usleep(SRS_CONSTS_RTMP_PULSE_TIMEOUT_US);
+            
+            // ignore when nothing got.
+            continue;
+        }
+        srs_info("http: got %d msgs, min=%d, mw=%d", count, 
+            SRS_PERF_MW_MIN_MSGS, SRS_CONSTS_RTMP_PULSE_TIMEOUT_US / 1000);
+    
+        // free the messages.
+        for (int i = 0; i < count; i++) {
+            SrsSharedPtrMessage* msg = msgs.msgs[i];
+            queue->enqueue(msg);
         }
     }
     
     return ret;
 }
 
-string SrsHttpVhost::get_request_file(SrsHttpMessage* req)
+ISrsStreamEncoder::ISrsStreamEncoder()
 {
-    std::string fullpath = _dir + "/"; 
+}
+
+ISrsStreamEncoder::~ISrsStreamEncoder()
+{
+}
+
+SrsFlvStreamEncoder::SrsFlvStreamEncoder()
+{
+    enc = new SrsFlvEncoder();
+}
+
+SrsFlvStreamEncoder::~SrsFlvStreamEncoder()
+{
+    srs_freep(enc);
+}
+
+int SrsFlvStreamEncoder::initialize(SrsFileWriter* w, SrsStreamCache* /*c*/)
+{
+    int ret = ERROR_SUCCESS;
     
-    // if root, directly use the matched url.
-    if (_mount == "/") {
-        // add the dir
-        fullpath += req->match()->matched_url;
-        // if file speicified, add the file.
-        if (!req->match()->unmatched_url.empty()) {
-            fullpath += "/" + req->match()->unmatched_url;
-        }
+    if ((ret = enc->initialize(w)) != ERROR_SUCCESS) {
+        return ret;
+    }
+    
+    // write flv header.
+    if ((ret = enc->write_header())  != ERROR_SUCCESS) {
+        return ret;
+    }
+    
+    return ret;
+}
+
+int SrsFlvStreamEncoder::write_audio(int64_t timestamp, char* data, int size)
+{
+    return enc->write_audio(timestamp, data, size);
+}
+
+int SrsFlvStreamEncoder::write_video(int64_t timestamp, char* data, int size)
+{
+    return enc->write_video(timestamp, data, size);
+}
+
+int SrsFlvStreamEncoder::write_metadata(int64_t timestamp, char* data, int size)
+{
+    return enc->write_metadata(timestamp, data, size);
+}
+
+bool SrsFlvStreamEncoder::has_cache()
+{
+    // for flv stream, use gop cache of SrsSource is ok.
+    return false;
+}
+
+int SrsFlvStreamEncoder::dump_cache(SrsConsumer* /*consumer*/)
+{
+    // for flv stream, ignore cache.
+    return ERROR_SUCCESS;
+}
+
+SrsAacStreamEncoder::SrsAacStreamEncoder()
+{
+    enc = new SrsAacEncoder();
+    cache = NULL;
+}
+
+SrsAacStreamEncoder::~SrsAacStreamEncoder()
+{
+    srs_freep(enc);
+}
+
+int SrsAacStreamEncoder::initialize(SrsFileWriter* w, SrsStreamCache* c)
+{
+    int ret = ERROR_SUCCESS;
+    
+    cache = c;
+    
+    if ((ret = enc->initialize(w)) != ERROR_SUCCESS) {
+        return ret;
+    }
+    
+    return ret;
+}
+
+int SrsAacStreamEncoder::write_audio(int64_t timestamp, char* data, int size)
+{
+    return enc->write_audio(timestamp, data, size);
+}
+
+int SrsAacStreamEncoder::write_video(int64_t /*timestamp*/, char* /*data*/, int /*size*/)
+{
+    // aac ignore any flv video.
+    return ERROR_SUCCESS;
+}
+
+int SrsAacStreamEncoder::write_metadata(int64_t /*timestamp*/, char* /*data*/, int /*size*/)
+{
+    // aac ignore any flv metadata.
+    return ERROR_SUCCESS;
+}
+
+bool SrsAacStreamEncoder::has_cache()
+{
+    return true;
+}
+
+int SrsAacStreamEncoder::dump_cache(SrsConsumer* consumer)
+{
+    srs_assert(cache);
+    return cache->dump_cache(consumer);
+}
+
+SrsMp3StreamEncoder::SrsMp3StreamEncoder()
+{
+    enc = new SrsMp3Encoder();
+    cache = NULL;
+}
+
+SrsMp3StreamEncoder::~SrsMp3StreamEncoder()
+{
+    srs_freep(enc);
+}
+
+int SrsMp3StreamEncoder::initialize(SrsFileWriter* w, SrsStreamCache* c)
+{
+    int ret = ERROR_SUCCESS;
+    
+    cache = c;
+    
+    if ((ret = enc->initialize(w)) != ERROR_SUCCESS) {
+        return ret;
+    }
+    
+    if ((ret = enc->write_header()) != ERROR_SUCCESS) {
+        return ret;
+    }
+    
+    return ret;
+}
+
+int SrsMp3StreamEncoder::write_audio(int64_t timestamp, char* data, int size)
+{
+    return enc->write_audio(timestamp, data, size);
+}
+
+int SrsMp3StreamEncoder::write_video(int64_t /*timestamp*/, char* /*data*/, int /*size*/)
+{
+    // mp3 ignore any flv video.
+    return ERROR_SUCCESS;
+}
+
+int SrsMp3StreamEncoder::write_metadata(int64_t /*timestamp*/, char* /*data*/, int /*size*/)
+{
+    // mp3 ignore any flv metadata.
+    return ERROR_SUCCESS;
+}
+
+bool SrsMp3StreamEncoder::has_cache()
+{
+    return true;
+}
+
+int SrsMp3StreamEncoder::dump_cache(SrsConsumer* consumer)
+{
+    srs_assert(cache);
+    return cache->dump_cache(consumer);
+}
+
+SrsStreamWriter::SrsStreamWriter(ISrsGoHttpResponseWriter* w)
+{
+    writer = w;
+}
+
+SrsStreamWriter::~SrsStreamWriter()
+{
+}
+
+int SrsStreamWriter::open(std::string /*file*/)
+{
+    return ERROR_SUCCESS;
+}
+
+void SrsStreamWriter::close()
+{
+}
+
+bool SrsStreamWriter::is_open()
+{
+    return true;
+}
+
+int64_t SrsStreamWriter::tellg()
+{
+    return 0;
+}
+
+int SrsStreamWriter::write(void* buf, size_t count, ssize_t* pnwrite)
+{
+    if (pnwrite) {
+        *pnwrite = count;
+    }
+    return writer->write((char*)buf, (int)count);
+}
+
+SrsLiveStream::SrsLiveStream(SrsSource* s, SrsRequest* r, SrsStreamCache* c)
+{
+    source = s;
+    cache = c;
+    req = r->copy();
+}
+
+SrsLiveStream::~SrsLiveStream()
+{
+    srs_freep(req);
+}
+
+int SrsLiveStream::serve_http(ISrsGoHttpResponseWriter* w, SrsHttpMessage* r)
+{
+    int ret = ERROR_SUCCESS;
+    
+    ISrsStreamEncoder* enc = NULL;
+    
+    srs_assert(entry);
+    if (srs_string_ends_with(entry->pattern, ".flv")) {
+        w->header()->set_content_type("video/x-flv");
+        enc = new SrsFlvStreamEncoder();
+    } else if (srs_string_ends_with(entry->pattern, ".aac")) {
+        w->header()->set_content_type("audio/x-aac");
+        enc = new SrsAacStreamEncoder();
+    } else if (srs_string_ends_with(entry->pattern, ".mp3")) {
+        w->header()->set_content_type("audio/mpeg");
+        enc = new SrsMp3StreamEncoder();
     } else {
-        // virtual path, ignore the virutal path.
-        fullpath += req->match()->unmatched_url;
+        ret = ERROR_HTTP_LIVE_STREAM_EXT;
+        srs_error("http: unsupported pattern %s", entry->pattern.c_str());
+        return ret;
+    }
+    SrsAutoFree(ISrsStreamEncoder, enc);
+    
+    // create consumer of souce, ignore gop cache, use the audio gop cache.
+    SrsConsumer* consumer = NULL;
+    if ((ret = source->create_consumer(consumer, true, true, !enc->has_cache())) != ERROR_SUCCESS) {
+        srs_error("http: create consumer failed. ret=%d", ret);
+        return ret;
+    }
+    SrsAutoFree(SrsConsumer, consumer);
+    srs_verbose("http: consumer created success.");
+    
+    SrsMessageArray msgs(SRS_PERF_MW_MSGS);
+    // TODO: FIMXE: add pithy print.
+    
+    // the memory writer.
+    SrsStreamWriter writer(w);
+    if ((ret = enc->initialize(&writer, cache)) != ERROR_SUCCESS) {
+        srs_error("http: initialize stream encoder failed. ret=%d", ret);
+        return ret;
     }
     
-    // add default pages.
-    if (srs_string_ends_with(fullpath, "/")) {
-        fullpath += SRS_HTTP_DEFAULT_PAGE;
+    // if gop cache enabled for encoder, dump to consumer.
+    if (enc->has_cache()) {
+        if ((ret = enc->dump_cache(consumer)) != ERROR_SUCCESS) {
+            srs_error("http: dump cache to consumer failed. ret=%d", ret);
+            return ret;
+        }
     }
     
-    return fullpath;
+    while (true) {
+        // get messages from consumer.
+        // each msg in msgs.msgs must be free, for the SrsMessageArray never free them.
+        int count = 0;
+        if ((ret = consumer->dump_packets(&msgs, count)) != ERROR_SUCCESS) {
+            srs_error("http: get messages from consumer failed. ret=%d", ret);
+            return ret;
+        }
+        
+        if (count <= 0) {
+            srs_info("http: mw sleep %dms for no msg", mw_sleep);
+            // directly use sleep, donot use consumer wait.
+            st_usleep(SRS_CONSTS_RTMP_PULSE_TIMEOUT_US);
+            
+            // ignore when nothing got.
+            continue;
+        }
+        srs_info("http: got %d msgs, min=%d, mw=%d", count, 
+            SRS_PERF_MW_MIN_MSGS, SRS_CONSTS_RTMP_PULSE_TIMEOUT_US / 1000);
+        
+        // sendout all messages.
+        ret = streaming_send_messages(enc, msgs.msgs, count);
+    
+        // free the messages.
+        for (int i = 0; i < count; i++) {
+            SrsSharedPtrMessage* msg = msgs.msgs[i];
+            srs_freep(msg);
+        }
+        
+        // check send error code.
+        if (ret != ERROR_SUCCESS) {
+            if (!srs_is_client_gracefully_close(ret)) {
+                srs_error("http: send messages to client failed. ret=%d", ret);
+            }
+            return ret;
+        }
+    }
+    
+    return ret;
 }
 
-string SrsHttpVhost::vhost()
+int SrsLiveStream::streaming_send_messages(ISrsStreamEncoder* enc, SrsSharedPtrMessage** msgs, int nb_msgs)
 {
-    return _vhost;
+    int ret = ERROR_SUCCESS;
+    
+    for (int i = 0; i < nb_msgs; i++) {
+        SrsSharedPtrMessage* msg = msgs[i];
+        
+        if (msg->is_audio()) {
+            ret = enc->write_audio(msg->timestamp, msg->payload, msg->size);
+        } else if (msg->is_video()) {
+            ret = enc->write_video(msg->timestamp, msg->payload, msg->size);
+        } else {
+            ret = enc->write_metadata(msg->timestamp, msg->payload, msg->size);
+        }
+        
+        if (ret != ERROR_SUCCESS) {
+            return ret;
+        }
+    }
+    
+    return ret;
 }
 
-string SrsHttpVhost::mount()
+SrsLiveEntry::SrsLiveEntry()
 {
-    return _mount;
+    stream = NULL;
+    cache = NULL;
 }
 
-string SrsHttpVhost::dir()
+SrsHttpServer::SrsHttpServer()
 {
-    return _dir;
 }
 
-SrsHttpConn::SrsHttpConn(SrsServer* srs_server, st_netfd_t client_stfd, SrsHttpHandler* _handler) 
-    : SrsConnection(srs_server, client_stfd)
+SrsHttpServer::~SrsHttpServer()
+{
+    std::map<std::string, SrsLiveEntry*>::iterator it;
+    for (it = flvs.begin(); it != flvs.end(); ++it) {
+        SrsLiveEntry* entry = it->second;
+        srs_freep(entry);
+    }
+    flvs.clear();
+}
+
+int SrsHttpServer::initialize()
+{
+    int ret = ERROR_SUCCESS;
+    
+    // static file
+    // flv vod streaming.
+    if ((ret = mount_static_file()) != ERROR_SUCCESS) {
+        return ret;
+    }
+    
+    // remux rtmp to flv live streaming
+    if ((ret = mount_flv_streaming()) != ERROR_SUCCESS) {
+        return ret;
+    }
+    
+    return ret;
+}
+
+int SrsHttpServer::mount(SrsSource* s, SrsRequest* r)
+{
+    int ret = ERROR_SUCCESS;
+    
+    if (flvs.find(r->vhost) == flvs.end()) {
+        srs_info("ignore mount flv stream for disabled");
+        return ret;
+    }
+    
+    SrsLiveEntry* entry = flvs[r->vhost];
+    
+    // TODO: FIXME: supports reload.
+    if (entry->stream) {
+        entry->stream->entry->enabled = true;
+        return ret;
+    }
+
+    std::string mount = entry->mount;
+
+    // replace the vhost variable
+    mount = srs_string_replace(mount, "[vhost]", r->vhost);
+    mount = srs_string_replace(mount, "[app]", r->app);
+    mount = srs_string_replace(mount, "[stream]", r->stream);
+
+    // remove the default vhost mount
+    mount = srs_string_replace(mount, SRS_CONSTS_RTMP_DEFAULT_VHOST"/", "/");
+    
+    entry->cache = new SrsStreamCache(s, r);
+    entry->stream = new SrsLiveStream(s, r, entry->cache);
+    
+    // start http stream cache thread
+    if ((ret = entry->cache->start()) != ERROR_SUCCESS) {
+        srs_error("http: start stream cache failed. ret=%d", ret);
+        return ret;
+    }
+    
+    // mount the http flv stream.
+    if ((ret = mux.handle(mount, entry->stream)) != ERROR_SUCCESS) {
+        srs_error("http: mount flv stream for vhost=%s failed. ret=%d", r->vhost.c_str(), ret);
+        return ret;
+    }
+    srs_trace("http: mount flv stream for vhost=%s, mount=%s", r->vhost.c_str(), mount.c_str());
+    
+    return ret;
+}
+
+void SrsHttpServer::unmount(SrsSource* s, SrsRequest* r)
+{
+    if (flvs.find(r->vhost) == flvs.end()) {
+        srs_info("ignore unmount flv stream for disabled");
+        return;
+    }
+
+    SrsLiveEntry* entry = flvs[r->vhost];
+    entry->stream->entry->enabled = false;
+}
+
+int SrsHttpServer::on_reload_vhost_http_updated()
+{
+    int ret = ERROR_SUCCESS;
+    // TODO: FIXME: implements it.
+    return ret;
+}
+
+int SrsHttpServer::on_reload_vhost_http_flv_updated()
+{
+    int ret = ERROR_SUCCESS;
+    // TODO: FIXME: implements it.
+    return ret;
+}
+
+int SrsHttpServer::mount_static_file()
+{
+    int ret = ERROR_SUCCESS;
+    
+    bool default_root_exists = false;
+    
+    // http static file and flv vod stream mount for each vhost.
+    SrsConfDirective* root = _srs_config->get_root();
+    for (int i = 0; i < (int)root->directives.size(); i++) {
+        SrsConfDirective* conf = root->at(i);
+        
+        if (!conf->is_vhost()) {
+            continue;
+        }
+        
+        std::string vhost = conf->arg0();
+        if (!_srs_config->get_vhost_http_enabled(vhost)) {
+            continue;
+        }
+        
+        std::string mount = _srs_config->get_vhost_http_mount(vhost);
+        std::string dir = _srs_config->get_vhost_http_dir(vhost);
+
+        // replace the vhost variable
+        mount = srs_string_replace(mount, "[vhost]", vhost);
+
+        // remove the default vhost mount
+        mount = srs_string_replace(mount, SRS_CONSTS_RTMP_DEFAULT_VHOST"/", "/");
+        
+        // the dir mount must always ends with "/"
+        if (mount != "/" && mount.rfind("/") != mount.length() - 1) {
+            mount += "/";
+        }
+        
+        // mount the http of vhost.
+        if ((ret = mux.handle(mount, new SrsVodStream(dir))) != ERROR_SUCCESS) {
+            srs_error("http: mount dir=%s for vhost=%s failed. ret=%d", dir.c_str(), vhost.c_str(), ret);
+            return ret;
+        }
+        
+        if (mount == "/") {
+            default_root_exists = true;
+            srs_warn("http: root mount to %s", dir.c_str());
+        }
+        srs_trace("http: vhost=%s mount to %s", vhost.c_str(), mount.c_str());
+    }
+    
+    if (!default_root_exists) {
+        // add root
+        std::string dir = _srs_config->get_http_stream_dir();
+        if ((ret = mux.handle("/", new SrsVodStream(dir))) != ERROR_SUCCESS) {
+            srs_error("http: mount root dir=%s failed. ret=%d", dir.c_str(), ret);
+            return ret;
+        }
+        srs_trace("http: root mount to %s", dir.c_str());
+    }
+    
+    return ret;
+}
+
+int SrsHttpServer::mount_flv_streaming()
+{
+    int ret = ERROR_SUCCESS;
+    
+    // http flv live stream mount for each vhost.
+    SrsConfDirective* root = _srs_config->get_root();
+    for (int i = 0; i < (int)root->directives.size(); i++) {
+        SrsConfDirective* conf = root->at(i);
+        
+        if (!conf->is_vhost()) {
+            continue;
+        }
+        
+        std::string vhost = conf->arg0();
+        if (!_srs_config->get_vhost_http_flv_enabled(vhost)) {
+            continue;
+        }
+        
+        SrsLiveEntry* entry = new SrsLiveEntry();
+        entry->vhost = vhost;
+        entry->mount = _srs_config->get_vhost_http_flv_mount(vhost);
+        flvs[vhost] = entry;
+        srs_trace("http flv live stream, vhost=%s, mount=%s", 
+            vhost.c_str(), entry->mount.c_str());
+    }
+    
+    return ret;
+}
+
+SrsHttpConn::SrsHttpConn(SrsServer* svr, st_netfd_t fd, SrsHttpServer* m) 
+    : SrsConnection(svr, fd)
 {
     parser = new SrsHttpParser();
-    handler = _handler;
-    requires_crossdomain = false;
+    mux = m;
 }
 
 SrsHttpConn::~SrsHttpConn()
@@ -538,7 +813,8 @@ int SrsHttpConn::do_cycle()
         SrsAutoFree(SrsHttpMessage, req);
         
         // ok, handle http request.
-        if ((ret = process_request(&skt, req)) != ERROR_SUCCESS) {
+        SrsGoHttpResponseWriter writer(&skt);
+        if ((ret = process_request(&writer, req)) != ERROR_SUCCESS) {
             return ret;
         }
     }
@@ -546,44 +822,19 @@ int SrsHttpConn::do_cycle()
     return ret;
 }
 
-int SrsHttpConn::process_request(SrsStSocket* skt, SrsHttpMessage* req) 
+int SrsHttpConn::process_request(ISrsGoHttpResponseWriter* w, SrsHttpMessage* r) 
 {
     int ret = ERROR_SUCCESS;
-
-    // parse uri to schema/server:port/path?query
-    if ((ret = req->parse_uri()) != ERROR_SUCCESS) {
-        return ret;
-    }
     
     srs_trace("HTTP %s %s, content-length=%"PRId64"", 
-        req->method_str().c_str(), req->url().c_str(), req->content_length());
+        r->method_str().c_str(), r->url().c_str(), r->content_length());
     
-    // TODO: maybe need to parse the url.
-    std::string url = req->path();
-    
-    SrsHttpHandlerMatch* p = NULL;
-    if ((ret = handler->best_match(url.data(), url.length(), &p)) != ERROR_SUCCESS) {
-        srs_warn("failed to find the best match handler for url. ret=%d", ret);
+    // use default server mux to serve http request.
+    if ((ret = mux->mux.serve_http(w, r)) != ERROR_SUCCESS) {
+        if (!srs_is_client_gracefully_close(ret)) {
+            srs_error("serve http msg failed. ret=%d", ret);
+        }
         return ret;
-    }
-    
-    // if success, p and pstart should be valid.
-    srs_assert(p);
-    srs_assert(p->handler);
-    srs_assert(p->matched_url.length() <= url.length());
-    srs_info("best match handler, matched_url=%s", p->matched_url.c_str());
-    
-    req->set_match(p);
-    req->set_requires_crossdomain(requires_crossdomain);
-    
-    // use handler to process request.
-    if ((ret = p->handler->process_request(skt, req)) != ERROR_SUCCESS) {
-        srs_warn("handler failed to process http request. ret=%d", ret);
-        return ret;
-    }
-    
-    if (req->requires_crossdomain()) {
-        requires_crossdomain = true;
     }
     
     return ret;

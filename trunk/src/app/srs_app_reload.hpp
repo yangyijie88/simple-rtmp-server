@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -56,6 +56,7 @@ public:
     virtual int on_reload_http_stream_disabled();
     virtual int on_reload_http_stream_updated();
     virtual int on_reload_vhost_http_updated();
+    virtual int on_reload_vhost_http_flv_updated();
     virtual int on_reload_vhost_added(std::string vhost);
     virtual int on_reload_vhost_removed(std::string vhost);
     virtual int on_reload_vhost_atc(std::string vhost);
@@ -65,6 +66,10 @@ public:
     virtual int on_reload_vhost_forward(std::string vhost);
     virtual int on_reload_vhost_hls(std::string vhost);
     virtual int on_reload_vhost_dvr(std::string vhost);
+    virtual int on_reload_vhost_mr(std::string vhost);
+    virtual int on_reload_vhost_mw(std::string vhost);
+    virtual int on_reload_vhost_realtime(std::string vhost);
+    virtual int on_reload_vhost_chunk_size(std::string vhost);
     virtual int on_reload_vhost_transcode(std::string vhost);
     virtual int on_reload_ingest_removed(std::string vhost, std::string ingest_id);
     virtual int on_reload_ingest_added(std::string vhost, std::string ingest_id);

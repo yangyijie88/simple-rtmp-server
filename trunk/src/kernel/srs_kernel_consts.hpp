@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -67,18 +67,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // the following is the timeout for rtmp protocol, 
 // to avoid death connection.
 
-// the timeout to wait client data,
+// the timeout to send data to client,
 // if timeout, close the connection.
 #define SRS_CONSTS_RTMP_SEND_TIMEOUT_US (int64_t)(30*1000*1000LL)
 
-// the timeout to send data to client,
+// the timeout to wait client data,
 // if timeout, close the connection.
 #define SRS_CONSTS_RTMP_RECV_TIMEOUT_US (int64_t)(30*1000*1000LL)
 
 // the timeout to wait for client control message,
 // if timeout, we generally ignore and send the data to client,
 // generally, it's the pulse time for data seding.
-#define SRS_CONSTS_RTMP_PULSE_TIMEOUT_US (int64_t)(200*1000LL)
+// @remark, recomment to 500ms.
+#define SRS_CONSTS_RTMP_PULSE_TIMEOUT_US (int64_t)(500*1000LL)
 
 /**
 * max rtmp header size:
@@ -95,7 +96,30 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 * that is, 1+4=5bytes.
 */
 // always use fmt0 as cache.
-//#define SRS_CONSTS_RTMP_MAX_FMT3_HEADER_SIZE 5
+#define SRS_CONSTS_RTMP_MAX_FMT3_HEADER_SIZE 5
+
+/**
+* for performance issue, 
+* the iovs cache, @see https://github.com/winlinvip/simple-rtmp-server/issues/194
+* iovs cache for multiple messages for each connections.
+* suppose the chunk size is 64k, each message send in a chunk which needs only 2 iovec,
+* so the iovs max should be (SRS_PERF_MW_MSGS * 2)
+*
+* @remark, SRS will realloc when the iovs not enough.
+*/
+#define SRS_CONSTS_IOVS_MAX (SRS_PERF_MW_MSGS * 2)
+/**
+* for performance issue, 
+* the c0c3 cache, @see https://github.com/winlinvip/simple-rtmp-server/issues/194
+* c0c3 cache for multiple messages for each connections.
+* each c0 <= 16byes, suppose the chunk size is 64k,
+* each message send in a chunk which needs only a c0 header,
+* so the c0c3 cache should be (SRS_PERF_MW_MSGS * 16)
+*
+* @remark, SRS will try another loop when c0c3 cache dry, for we cannot realloc it.
+*       so we use larger c0c3 cache, that is (SRS_PERF_MW_MSGS * 32)
+*/
+#define SRS_CONSTS_C0C3_HEADERS_MAX (SRS_PERF_MW_MSGS * 32)
 
 ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////
@@ -170,6 +194,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////
+// RTMP consts values
+///////////////////////////////////////////////////////////
+#define SRS_CONSTS_RTMP_SET_DATAFRAME            "@setDataFrame"
+#define SRS_CONSTS_RTMP_ON_METADATA              "onMetaData"
 
 ///////////////////////////////////////////////////////////
 // HTTP consts values

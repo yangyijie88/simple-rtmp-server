@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -35,9 +35,10 @@ int main(int argc, char** argv)
     srs_rtmp_t rtmp;
     
     // packet data
-    int type, size;
-    u_int32_t timestamp = 0;
+    int size;
+    char type;
     char* data;
+    u_int32_t timestamp;
     
     // srs debug info.
     char srs_server_ip[128];
@@ -64,6 +65,10 @@ int main(int argc, char** argv)
     srs_authors[0] = 0;
     srs_version[0] = 0;
     
+    printf("RTMP bandwidth check/test with server.\n");
+    printf("srs(simple-rtmp-server) client librtmp library.\n");
+    printf("version: %d.%d.%d\n", srs_version_major(), srs_version_minor(), srs_version_revision());
+    
     if (argc <= 1) {
         printf("RTMP bandwidth check/test with server.\n"
             "Usage: %s <rtmp_url>\n"
@@ -73,45 +78,41 @@ int main(int argc, char** argv)
             "   %s rtmp://127.0.0.1:1935/app?key=35c9b402c12a7246868752e2878f7e0e,vhost=bandcheck.srs.com>/dev/null\n"
             "@remark, output text to stdout, while json to stderr.\n",
             argv[0], argv[0], argv[0]);
-        ret = 1;
-        exit(ret);
-        return ret;
+        exit(-1);
     }
     
     rtmp = srs_rtmp_create2(argv[1]);
     
-    printf("RTMP bandwidth check/test with server.\n");
-    printf("srs(simple-rtmp-server) client librtmp library.\n");
-    printf("version: %d.%d.%d\n", srs_version_major(), srs_version_minor(), srs_version_revision());
-    printf("bandwidth check/test url: %s\n", argv[1]);
+    srs_human_trace("bandwidth check/test url: %s", argv[1]);
     
-    if ((ret = srs_simple_handshake(rtmp)) != 0) {
-        printf("simple handshake failed.\n");
+    if ((ret = srs_rtmp_handshake(rtmp)) != 0) {
+        srs_human_trace("simple handshake failed.");
         goto rtmp_destroy;
     }
-    printf("simple handshake success\n");
+    srs_human_trace("simple handshake success");
     
-    if ((ret = srs_connect_app2(rtmp, 
-        srs_server_ip, srs_server, srs_primary, srs_authors, srs_version, &srs_id, &srs_pid)) != 0) {
-        printf("connect vhost/app failed.\n");
+    if ((ret = srs_rtmp_connect_app2(rtmp, 
+        srs_server_ip, srs_server, srs_primary, srs_authors, srs_version, 
+        &srs_id, &srs_pid)) != 0) {
+        srs_human_trace("connect vhost/app failed.");
         goto rtmp_destroy;
     }
-    printf("connect vhost/app success\n");
+    srs_human_trace("connect vhost/app success");
     
-    if ((ret = srs_bandwidth_check(rtmp, 
+    if ((ret = srs_rtmp_bandwidth_check(rtmp, 
         &start_time, &end_time, &play_kbps, &publish_kbps,
         &play_bytes, &publish_bytes, &play_duration, &publish_duration)) != 0
     ) {
-        printf("bandwidth check/test failed.\n");
+        srs_human_trace("bandwidth check/test failed.");
         goto rtmp_destroy;
     }
-    printf("bandwidth check/test success\n");
+    srs_human_trace("bandwidth check/test success");
     
-    printf("\n%s, %s, %s\n"
+    srs_human_trace("\n%s, %s, %s\n"
         "%s, %s, srs_pid=%d, srs_id=%d\n"
         "duration: %dms(%d+%d)\n"
         "play: %dkbps\n"
-        "publish: %dkbps\n\n", 
+        "publish: %dkbps", 
         (char*)srs_server, (char*)srs_primary, (char*)srs_authors,
         (char*)srs_server_ip, (char*)srs_version, srs_pid, srs_id,
         (int)(end_time - start_time), play_duration, publish_duration,
@@ -120,8 +121,6 @@ int main(int argc, char** argv)
     
 rtmp_destroy:
     srs_rtmp_destroy(rtmp);
-    
-    printf("terminate with ret=%d\n\n", ret);
     
     fprintf(stderr, "{\"code\":%d,"
         "\"srs_server\":\"%s\", "
@@ -133,6 +132,7 @@ rtmp_destroy:
         "\"srs_id\":%d, "
         "\"duration\":%d, "
         "\"play_duration\":%d, "
+        "\"publish_duration\":%d,"
         "\"play_kbps\":%d, "
         "\"publish_kbps\":%d"
         "}",
@@ -141,5 +141,9 @@ rtmp_destroy:
         (char*)srs_server_ip, (char*)srs_version, srs_pid, srs_id,
         (int)(end_time - start_time), play_duration, publish_duration,
         play_kbps, publish_kbps);
+    
+    srs_human_trace(" ");
+    srs_human_trace("completed");
+    
     return ret;
 }

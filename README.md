@@ -2,40 +2,16 @@
 
 SRS定位是运营级的互联网直播服务器集群，追求更好的概念完整性和最简单实现的代码。
 
-下载发布版(github): 
-[Centos6-x86_64](http://winlinvip.github.io/srs.release/releases/files/SRS-CentOS6-x86_64-1.0.0.zip) 
-其他[more...](http://winlinvip.github.io/srs.release/releases/) <br/>
-下载发布版(国内阿里云镜像): 
-[Centos6-x86_64](http://www.ossrs.net/srs.release/releases/files/SRS-CentOS6-x86_64-1.0.0.zip) 
-其他[more...](http://www.ossrs.net/srs.release/releases/)<br/>
-QQ群: 365936885, by wenjie <br/>
-同类产品：[BLS](https://github.com/wenjiegit/Bull-Live-Server)/[BLE](https://github.com/wenjiegit/Bull-Live-Encoder), [NGINX-RTMP](https://github.com/arut/nginx-rtmp-module), [CRTMPD](http://www.rtmpd.com/), [RED5](http://www.red5.org/), [WOWZA](http://www.wowza.com/), [FMS/AMS](http://www.adobe.com/products/adobe-media-server-standard.html)
+SRS is industrial-strength live streaming cluster, 
+for the best conceptual integrity and the simplest implementation.
 
-获得源码(github): [https://github.com/winlinvip/simple-rtmp-server](https://github.com/winlinvip/simple-rtmp-server) [GIT使用方法](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Git)
+Download from github.io: 
+[Centos6-x86_64](http://winlinvip.github.io/srs.release/releases/files/SRS-CentOS6-x86_64-1.0.21.zip) 
+[more...](http://winlinvip.github.io/srs.release/releases/)
 
-```bash
-git clone https://github.com/winlinvip/simple-rtmp-server.git
-```
-
-获得源码(国内CSDN镜像): [https://code.csdn.net/winlinvip/srs-csdn](https://code.csdn.net/winlinvip/srs-csdn) [GIT使用方法](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Git)
-
-```bash
-git clone https://code.csdn.net/winlinvip/srs-csdn.git
-```
-
-获得源码(国内OSChina镜像): [http://git.oschina.net/winlinvip/srs.oschina](http://git.oschina.net/winlinvip/srs.oschina) [GIT使用方法](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Git)
-
-```bash
-git clone https://git.oschina.net/winlinvip/srs.oschina.git
-```
-
-报告问题(BugReport): [https://github.com/winlinvip/simple-rtmp-server/issues/new](https://github.com/winlinvip/simple-rtmp-server/issues/new)<br/>
-中文资料(Wiki): [https://github.com/winlinvip/simple-rtmp-server/wiki](https://github.com/winlinvip/simple-rtmp-server/wiki) <br/>
-使用步骤(Usage): [https://github.com/winlinvip/simple-rtmp-server#usage](#usage) <br/>
-公用机器(LiveShow): [https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_LiveShow](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_LiveShow) <br/>
-捐款(Donation): [GitHub](http://winlinvip.github.io/srs.release/donation/index.html) 
-或 [阿里云镜像](http://www.ossrs.net/srs.release/donation/index.html) ，查看
-[捐献墙(Donations)](https://github.com/winlinvip/simple-rtmp-server/blob/develop/DONATIONS.txt)<br/>
+Download from ossrs.net: 
+[Centos6-x86_64](http://www.ossrs.net/srs.release/releases/files/SRS-CentOS6-x86_64-1.0.21.zip) 
+[more...](http://www.ossrs.net/srs.release/releases/)
 
 ## About
 
@@ -59,9 +35,17 @@ HLS(
 [CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DeliveryHLS), 
 [EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_DeliveryHLS)
 ), 
-high-performance(2.7k+ clients)(
+HTTP(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_DeliveryHttpFlvStream),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_DeliveryHttpFlvStream)
+),
+high-performance(10k+ clients)(
 [CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Performance), 
 [EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Performance)
+),
+low-latency(0.1s+)(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_LowLatency),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_LowLatency)
 ),
 single processes, edge/origin live server, 
 x86/x64/arm(
@@ -129,32 +113,43 @@ dvr(
 [EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_DVR)
 ) and
 SRS-librtmp(
-[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SrsLibrtmp),
-[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_SrsLibrtmp)
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SrsLibrtmp),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SrsLibrtmp)
 ).
 
 SRS-librtmp(
-[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SrsLibrtmp),
-[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_SrsLibrtmp)
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SrsLibrtmp),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SrsLibrtmp)
 )
 is a client library, only depends on c++ and socket, with 
 examples(
-[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SrsLibrtmp#srs-librtmp-examples),
-[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_SrsLibrtmp#srs-librtmp-examples)
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SrsLibrtmp#srs-librtmp-examples),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SrsLibrtmp#srs-librtmp-examples)
 )(to play, 
 publish, ingest flv/rtmp, inject flv, 
+publish h264 raw stream(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SrsLibrtmp#publish-h264-raw-data), 
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SrsLibrtmp#publish-h264-raw-data)
+),
+exported as seperate project or single cpp file by configure(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SrsLibrtmp#export-srs-librtmp),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SrsLibrtmp#export-srs-librtmp)
+).
 SRS-librtmp(
-[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SrsLibrtmp),
-[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_SrsLibrtmp)
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SrsLibrtmp),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SrsLibrtmp)
 )
-provides apis to support RTMP, FLV and AMF0.
+provides apis to support RTMP, FLV, AMF0 and 
+h.264 raw stream(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SrsLibrtmp#publish-h264-raw-data),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SrsLibrtmp#publish-h264-raw-data)
+).
 
+Report Bug: [https://github.com/winlinvip/simple-rtmp-server/issues/new](https://github.com/winlinvip/simple-rtmp-server/issues/new)  <br/>
 WebSite: [http://ossrs.net](http://ossrs.net) <br/>
 Release: [http://winlinvip.github.io/srs.release](http://winlinvip.github.io/srs.release)  <br/>
 Blog: [http://blog.csdn.net/win_lin](http://blog.csdn.net/win_lin)  <br/>
-CSDN mirror: [https://code.csdn.net/winlinvip/srs-csdn](https://code.csdn.net/winlinvip/srs-csdn) <br/>
-See also: [https://github.com/winlinvip/simple-rtmp-server](https://github.com/winlinvip/simple-rtmp-server)  <br/>
-Github DEMO: [demo with your SRS](http://winlinvip.github.io/srs.release/trunk/research/players/srs_player.html?server=192.168.1.170&vhost=192.168.1.170)  <br/>
+QQ Group: 365936885, by wenjie <br/>
 Wiki: [https://github.com/winlinvip/simple-rtmp-server/wiki](https://github.com/winlinvip/simple-rtmp-server/wiki)  <br/>
 StreamServers：[BLS](https://github.com/wenjiegit/Bull-Live-Server)/[BLE](https://github.com/wenjiegit/Bull-Live-Encoder), 
 [NGINX-RTMP](https://github.com/arut/nginx-rtmp-module), [CRTMPD](http://www.rtmpd.com/), 
@@ -237,8 +232,8 @@ cd simple-rtmp-server/trunk
 
 <strong>Step 2:</strong> build SRS,
 <strong>Requires Centos6.x/Ubuntu12 32/64bits, others see Build(
-[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Build),
-[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Build)
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_Build),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_Build)
 ).</strong>
 
 <pre>
@@ -292,6 +287,10 @@ cd simple-rtmp-server/trunk
 [CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SampleDemo),
 [EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_SampleDemo)
 )
+* Usage: How to publish h.264 raw stream to SRS?(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SrsLibrtmp#publish-h264-raw-data),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SrsLibrtmp#publish-h264-raw-data)
+)
 * Usage: Solution using SRS?(
 [CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Sample),
 [EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Sample)
@@ -309,6 +308,12 @@ Please select your language:
 * [SRS 1.0 English](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Home)
 * [SRS 1.0 Chinese](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Home)
 
+SRS 2.0 wiki
+
+Please select your language:
+* [SRS 2.0 English](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_Home)
+* [SRS 2.0 Chinese](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_Home)
+
 ## Donation
 
 Donation:<br/>
@@ -325,41 +330,170 @@ Supported operating systems and hardware:
 * All hardware with x86/x86_64/arm/mips cpu.
 
 ## Summary
-1. 简洁稳定：Simple, also stable enough.
-1. 高性能：[High-performance](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Performance): single-thread, async socket, event/st-thread driven.
-1. 高并发：[High-concurrency](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Performance), 1800 connections(500kbps), 900Mbps, CPU 90.2%, 41MB
-1. RTMP源站：Support [RTMP Origin Server](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DeliveryRTMP).
-1. CDN边缘(上下行加速)：Support [RTMP Edge Server](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Edge) for CDN, push/pull stream from any RTMP server
-1. 单进程(无多进程)：Support single process; no multiple processes.
-1. 支持Vhost：Support [Vhost](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_RtmpUrlVhost), support \_\_defaultVhost\_\_.
-1. 直播(无点播)：Support [RTMP](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DeliveryRTMP) live streaming; no vod streaming.
-1. 苹果HLS：Support Apple [HLS(m3u8)](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DeliveryHLS) live streaming.
-1. 支持纯音频HLS：Support [HLS audio-only](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DeliveryHLS#hlsaudioonly) live streaming.
-1. 支持Reload：Support [Reload](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Reload) config to enable changes.
-1. 支持GopCache：Support [cache last gop](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_LowLatency#gop-cache) for flash player to fast startup.
-1. 侦听多端口：Support listen at multiple ports.
-1. 长时间推流：Support long time(>4.6hours) publish/play.
-1. 转发流：Support [Forward](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Forward) in master-slave mode.
-1. 流转码：Support live stream [Transcoding](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_FFMPEG) by ffmpeg.
-1. 支持FFMPEG滤镜：Support [ffmpeg](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_FFMPEG) filters(logo/overlay/crop), x264 params, copy/vn/an.
-1. 只转码音频：Support audio [transcode](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_FFMPEG) only, speex/mp3 to aac
-1. 支持HTTP回调：Support [http callback api hooks](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_HTTPCallback)(for authentication and injection).
-1. 带宽测速：Support [bandwidth test](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_BandwidthTestTool) api and flash client.
-1. 演示页面：Player, publisher(encoder), and [demo pages(jquery+bootstrap)](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SampleDemo). 
-1. 视频会议演示：[Demo](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SampleDemo) video meeting or chat(SRS+cherrypy+jquery+bootstrap). 
-1. 中文Wiki：Full documents in [wiki](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Home), in Chineses. 
-1. 客户端库：Support RTMP(play-publish) library: [srs-librtmp](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SrsLibrtmp)
-1. 支持ARM平台：Support ARM([debian armhf, v7cpu](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SrsLinuxArm)) with rtmp/ssl/hls/librtmp.
-1. 支持Init.d脚本：Support [init.d](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_LinuxService) and packge script, log to file. 
-1. 支持ATC：Support [RTMP ATC](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_RTMP-ATC) for HLS/HDS to support backup(failover)
-1. 支持HTTP-RESTful-API：Support [HTTP RESTful management api](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_HTTPApi).
-1. 采集流：Support [Ingest](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Ingest) FILE/HTTP/RTMP/RTSP(RTP, SDP) to RTMP using external tools(e.g ffmepg).
-1. 支持录制：Support [DVR](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DVR), record live to flv file for vod.
-1. 可追溯日志：Support [tracable log, session based log](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SrsLog).
-1. 支持FMS-Token穿越：Support DRM [token traverse](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DRM#tokentraverse) for fms origin authenticate.
-1. 全面的Utest：Support system full utest on gtest.
+1. Simple, also stable enough.
+1. High-performance(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Performance),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Performance)
+): single-thread, async socket, event/st-thread driven.
+1. High-concurrency(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Performance),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Performance)
+), 6000+ connections(500kbps), 900Mbps, CPU 90.2%, 41MB
+1. Support RTMP Origin Server(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DeliveryRTMP),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_DeliveryRTMP)
+)
+1. Support RTMP Edge Server(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Edge),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Edge)
+) for CDN, push/pull stream from any RTMP server
+1. Support single process; no multiple processes.
+1. Support Vhost(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_RtmpUrlVhost),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_RtmpUrlVhost)
+), support \_\_defaultVhost\_\_.
+1. Support RTMP(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DeliveryRTMP),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_DeliveryRTMP)
+) live streaming; no vod streaming.
+1. Support Apple HLS(m3u8)(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DeliveryHLS),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_DeliveryHLS)
+) live streaming.
+1. Support HLS audio-only(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DeliveryHLS#hlsaudioonly),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_DeliveryHLS#hlsaudioonly)
+) live streaming.
+1. Support Reload(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Reload),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Reload)
+) config to enable changes.
+1. Support cache last gop(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_LowLatency#gop-cache),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_LowLatency#gop-cache)
+) for flash player to fast startup.
+1. Support listen at multiple ports.
+1. Support long time(>4.6hours) publish/play.
+1. Support Forward(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Forward),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Forward)
+) in master-slave mode.
+1. Support live stream Transcoding(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_FFMPEG),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_FFMPEG)
+) by ffmpeg.
+1. Support ffmpeg(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_FFMPEG),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_FFMPEG)
+) filters(logo/overlay/crop), x264 params, copy/vn/an.
+1. Support audio transcode(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_FFMPEG),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_FFMPEG)
+) only, speex/mp3 to aac
+1. Support http callback api hooks(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_HTTPCallback),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_HTTPCallback)
+)(for authentication and injection).
+1. Support bandwidth test(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_BandwidthTestTool),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_BandwidthTestTool)
+) api and flash client.
+1. Player, publisher(encoder), and demo pages(jquery+bootstrap)(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SampleDemo),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_SampleDemo)
+). 
+1. Demo(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SampleDemo),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_SampleDemo)
+) video meeting or chat(SRS+cherrypy+jquery+bootstrap). 
+1. Full documents in wiki(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Home),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Home)
+), both Chinese and English. 
+1. Support RTMP(play-publish) library: srs-librtmp(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SrsLibrtmp),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SrsLibrtmp)
+)
+1. Support ARM cpu arch(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SrsLinuxArm),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_SrsLinuxArm)
+) with rtmp/ssl/hls/librtmp.
+1. Support init.d(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_LinuxService),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_LinuxService)
+) and packge script, log to file. 
+1. Support RTMP ATC(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_RTMP-ATC),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_RTMP-ATC)
+) for HLS/HDS to support backup(failover)
+1. Support HTTP RESTful management api(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_HTTPApi),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_HTTPApi)
+).
+1. Support Ingest(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Ingest),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Ingest)
+) FILE/HTTP/RTMP/RTSP(RTP, SDP) to RTMP using external tools(e.g ffmepg).
+1. Support DVR(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DVR),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_DVR)
+), record live to flv file for vod.
+1. Support tracable log, session based log(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SrsLog),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_SrsLog)
+).
+1. Support DRM token traverse(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_DRM#tokentraverse),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_DRM#tokentraverse)
+) for fms origin authenticate.
+1. Support system full utest on gtest.
+1. Support embeded HTTP server(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SampleHTTP),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SampleHTTP)
+) for hls(live/vod)
+1. Support vod stream(http flv/hls vod stream)(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_FlvVodStream),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_FlvVodStream)
+).
 1. Stable [1.0release branch](https://github.com/winlinvip/simple-rtmp-server/tree/1.0release) and 
 [2.0dev branch](https://github.com/winlinvip/simple-rtmp-server/tree/master).
+1. Support publish h264 raw stream(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SrsLibrtmp#publish-h264-raw-data),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SrsLibrtmp#publish-h264-raw-data)
+) by srs-librtmp.
+1. Support [6k+ clients](https://github.com/winlinvip/simple-rtmp-server/issues/194), 3Gbps per process.
+1. Suppport [English wiki](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_EN_Home).
+1. Research and simplify st, [bug #182](https://github.com/winlinvip/simple-rtmp-server/issues/182).
+1. Support compile [srs-librtmp on windows](https://github.com/winlinvip/srs.librtmp), 
+[bug #213](https://github.com/winlinvip/simple-rtmp-server/issues/213).
+1. Support [10k+ clients](https://github.com/winlinvip/simple-rtmp-server/issues/251), 4Gbps per process.
+1. Support publish aac adts raw stream(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_SrsLibrtmp#publish-audio-raw-stream),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_SrsLibrtmp#publish-audio-raw-stream)
+) by srs-librtmp.
+1. Support 0.1s+ latency, read [#257](https://github.com/winlinvip/simple-rtmp-server/issues/257).
+1. Support allow/deny publish/play for all or specified ip(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_Security),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_Security)
+).
+1. Support custom dvr path and http callback, read 
+[#179](https://github.com/winlinvip/simple-rtmp-server/issues/179) and
+[274](https://github.com/winlinvip/simple-rtmp-server/issues/274).
+1. Support rtmp remux to http flv/mp3/aac live stream, read 
+[#293](https://github.com/winlinvip/simple-rtmp-server/issues/293)(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_DeliveryHttpFlvStream),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_DeliveryHttpFlvStream)
+).
+1. [no-plan] Support <500ms latency, FRSC(Fast RTMP-compatible Stream Channel tech).
+1. [no-plan] Support RTMP 302 redirect [#92](https://github.com/winlinvip/simple-rtmp-server/issues/92).
+1. [no-plan] Support multiple processes, for both origin and edge
+1. [no-plan] Support adobe RTMFP(flash p2p) protocol.
+1. [no-plan] Support adobe flash refer/token/swf verification.
+1. [no-plan] Support adobe amf3 codec.
+1. [no-plan] Support encryption: RTMPE/RTMPS, HLS DRM
+1. [no-plan] Support RTMPT, http to tranverse firewalls
+1. [no-plan] Support file source, transcoding file to live stream
+1. [no-plan] Support RTP/RTSP server.
 
 ## Releases
 * 2015-01-15, [Release v1.0r1](https://github.com/winlinvip/simple-rtmp-server/releases/tag/1.0r1), bug fixed, 1.0.21, 59472 lines.<br/>
@@ -384,6 +518,71 @@ Supported operating systems and hardware:
 * 2013-10-17, Created.<br/>
 
 ## History
+
+### SRS 2.0 history
+
+* v2.0, 2015-01-19, fix [#293](https://github.com/winlinvip/simple-rtmp-server/issues/293), support http live flv/aac/mp3 stream with fast cache. 2.0.100.
+* v2.0, 2015-01-18, fix [#293](https://github.com/winlinvip/simple-rtmp-server/issues/293), support rtmp remux to http flv live stream. 2.0.99.
+* v2.0, 2015-01-17, fix [#277](https://github.com/winlinvip/simple-rtmp-server/issues/277), refine http server refer to go http-framework. 2.0.98
+* v2.0, 2015-01-17, for [#277](https://github.com/winlinvip/simple-rtmp-server/issues/277), refine http api refer to go http-framework. 2.0.97
+* v2.0, 2015-01-17, hotfix [#290](https://github.com/winlinvip/simple-rtmp-server/issues/290), use iformat only for rtmp input. 2.0.95
+* v2.0, 2015-01-08, hotfix [#281](https://github.com/winlinvip/simple-rtmp-server/issues/281), fix hls bug ignore type-9 send aud. 2.0.93
+* v2.0, 2015-01-03, fix [#274](https://github.com/winlinvip/simple-rtmp-server/issues/274), http-callback support on_dvr when reap a dvr file. 2.0.89
+* v2.0, 2015-01-03, hotfix to remove the pageUrl for http callback. 2.0.88
+* v2.0, 2015-01-03, fix [#179](https://github.com/winlinvip/simple-rtmp-server/issues/179), dvr support custom filepath by variables. 2.0.87
+* v2.0, 2015-01-02, fix [#211](https://github.com/winlinvip/simple-rtmp-server/issues/211), support security allow/deny publish/play all/ip. 2.0.86
+* v2.0, 2015-01-02, hotfix [#207](https://github.com/winlinvip/simple-rtmp-server/issues/207), trim the last 0 of log. 2.0.85
+* v2.0, 2014-01-02, fix [#158](https://github.com/winlinvip/simple-rtmp-server/issues/158), http-callback check http status code ok(200). 2.0.84
+* v2.0, 2015-01-02, hotfix [#216](https://github.com/winlinvip/simple-rtmp-server/issues/216), http-callback post in application/json content-type. 2.0.83
+* v2.0, 2014-01-02, fix [#263](https://github.com/winlinvip/simple-rtmp-server/issues/263), srs-librtmp flv read tag should init size. 2.0.82
+* v2.0, 2015-01-01, hotfix [#270](https://github.com/winlinvip/simple-rtmp-server/issues/270), memory leak for http client post. 2.0.81
+* v2.0, 2014-12-12, fix [#266](https://github.com/winlinvip/simple-rtmp-server/issues/266), aac profile is object id plus one. 2.0.80
+* v2.0, 2014-12-29, hotfix [#267](https://github.com/winlinvip/simple-rtmp-server/issues/267), the forward dest ep should use server. 2.0.79
+* v2.0, 2014-12-29, hotfix [#268](https://github.com/winlinvip/simple-rtmp-server/issues/268), the hls pcr is negative when startup. 2.0.78
+* v2.0, 2014-12-22, hotfix [#264](https://github.com/winlinvip/simple-rtmp-server/issues/264), ignore NALU when sequence header to make HLS happy. 2.0.76
+* v2.0, 2014-12-20, hotfix [#264](https://github.com/winlinvip/simple-rtmp-server/issues/264), support disconnect publish connect when hls error. 2.0.75
+* v2.0, 2014-12-12, fix [#257](https://github.com/winlinvip/simple-rtmp-server/issues/257), support 0.1s+ latency. 2.0.70
+* v2.0, 2014-12-08, update wiki for mr([EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_LowLatency#merged-read), [CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_LowLatency#merged-read)) and mw([EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_LowLatency#merged-write), [CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_LowLatency#merged-write)).
+* v2.0, 2014-12-07, fix [#251](https://github.com/winlinvip/simple-rtmp-server/issues/251), 10k+ clients, use queue cond wait and fast vector. 2.0.67
+* v2.0, 2014-12-05, fix [#251](https://github.com/winlinvip/simple-rtmp-server/issues/251), 9k+ clients, use fast cache for msgs queue. 2.0.57
+* v2.0, 2014-12-04, fix [#241](https://github.com/winlinvip/simple-rtmp-server/issues/241), add mw(merged-write) config. 2.0.53
+* v2.0, 2014-12-04, for [#241](https://github.com/winlinvip/simple-rtmp-server/issues/241), support mr(merged-read) config and reload. 2.0.52.
+* v2.0, 2014-12-04, enable [#241](https://github.com/winlinvip/simple-rtmp-server/issues/241) and [#248](https://github.com/winlinvip/simple-rtmp-server/issues/248), +25% performance, 2.5k publisher. 2.0.50
+* v2.0, 2014-12-04, fix [#248](https://github.com/winlinvip/simple-rtmp-server/issues/248), improve about 15% performance for fast buffer. 2.0.49
+* v2.0, 2014-12-03, fix [#244](https://github.com/winlinvip/simple-rtmp-server/issues/244), conn thread use cond to wait for recv thread error. 2.0.47.
+* v2.0, 2014-12-02, merge [#239](https://github.com/winlinvip/simple-rtmp-server/pull/239), traverse the token before response connect. 2.0.45.
+* v2.0, 2014-12-02, srs-librtmp support hijack io apis for st-load. 2.0.42.
+* v2.0, 2014-12-01, for [#237](https://github.com/winlinvip/simple-rtmp-server/issues/237), refine syscall for recv, supports 1.5k clients. 2.0.41.
+* v2.0, 2014-11-30, add qtcreate project file trunk/src/qt/srs/srs-qt.pro. 2.0.39.
+* v2.0, 2014-11-29, fix [#235](https://github.com/winlinvip/simple-rtmp-server/issues/235), refine handshake, replace union with template method. 2.0.38.
+* v2.0, 2014-11-28, fix [#215](https://github.com/winlinvip/simple-rtmp-server/issues/215), add srs_rtmp_dump tool. 2.0.37.
+* v2.0, 2014-11-25, update PRIMARY, AUTHORS, CONTRIBUTORS rule. 2.0.32.
+* v2.0, 2014-11-24, fix [#212](https://github.com/winlinvip/simple-rtmp-server/issues/212), support publish aac adts raw stream. 2.0.31.
+* v2.0, 2014-11-22, fix [#217](https://github.com/winlinvip/simple-rtmp-server/issues/217), remove timeout recv, support 7.5k+ 250kbps clients. 2.0.30.
+* v2.0, 2014-11-21, srs-librtmp add rtmp prefix for rtmp/utils/human apis. 2.0.29.
+* v2.0, 2014-11-21, refine examples of srs-librtmp, add srs_print_rtmp_packet. 2.0.28.
+* v2.0, 2014-11-20, fix [#212](https://github.com/winlinvip/simple-rtmp-server/issues/212), support publish audio raw frames. 2.0.27
+* v2.0, 2014-11-19, fix [#213](https://github.com/winlinvip/simple-rtmp-server/issues/213), support compile [srs-librtmp on windows](https://github.com/winlinvip/srs.librtmp), [bug #213](https://github.com/winlinvip/simple-rtmp-server/issues/213). 2.0.26
+* v2.0, 2014-11-18, all wiki translated to English. 2.0.23.
+* v2.0, 2014-11-15, fix [#204](https://github.com/winlinvip/simple-rtmp-server/issues/204), srs-librtmp drop duplicated sps/pps(sequence header). 2.0.22.
+* v2.0, 2014-11-15, fix [#203](https://github.com/winlinvip/simple-rtmp-server/issues/203), srs-librtmp drop any video before sps/pps(sequence header). 2.0.21.
+* v2.0, 2014-11-15, fix [#202](https://github.com/winlinvip/simple-rtmp-server/issues/202), fix memory leak of h.264 raw packet send in srs-librtmp. 2.0.20.
+* v2.0, 2014-11-13, fix [#200](https://github.com/winlinvip/simple-rtmp-server/issues/200), deadloop when read/write 0 and ETIME. 2.0.16.
+* v2.0, 2014-11-13, fix [#194](https://github.com/winlinvip/simple-rtmp-server/issues/194), writev multiple msgs, support 6k+ 250kbps clients. 2.0.15.
+* v2.0, 2014-11-12, fix [#194](https://github.com/winlinvip/simple-rtmp-server/issues/194), optmized st for timeout recv. pulse to 500ms. 2.0.14.
+* v2.0, 2014-11-11, fix [#195](https://github.com/winlinvip/simple-rtmp-server/issues/195), remove the confuse code st_usleep(0). 2.0.13.
+* v2.0, 2014-11-08, fix [#191](https://github.com/winlinvip/simple-rtmp-server/issues/191), configure --export-librtmp-project and --export-librtmp-single. 2.0.11.
+* v2.0, 2014-11-08, fix [#66](https://github.com/winlinvip/simple-rtmp-server/issues/66), srs-librtmp support write h264 raw packet. 2.0.9.
+* v2.0, 2014-10-25, fix [#185](https://github.com/winlinvip/simple-rtmp-server/issues/185), AMF0 support 0x0B the date type codec. 2.0.7.
+* v2.0, 2014-10-24, fix [#186](https://github.com/winlinvip/simple-rtmp-server/issues/186), hotfix for bug #186, drop connect args when not object. 2.0.6.
+* v2.0, 2014-10-24, rename wiki/xxx to wiki/v1_CN_xxx. 2.0.3.
+* v2.0, 2014-10-19, fix [#184](https://github.com/winlinvip/simple-rtmp-server/issues/184), support AnnexB in RTMP body for HLS. 2.0.2
+* v2.0, 2014-10-18, remove supports for OSX(darwin). 2.0.1.
+* v2.0, 2014-10-16, revert github srs README to English. 2.0.0.
+
+### SRS 1.0 history
+
+* v1.0, 2015-01-17, hotfix [#290](https://github.com/winlinvip/simple-rtmp-server/issues/290), use iformat only for rtmp input. 1.0.22
 * <strong>v1.0, 2015-01-15, [1.0r1 release(1.0.21)](https://github.com/winlinvip/simple-rtmp-server/releases/tag/1.0r1) released. 59472 lines.</strong>
 * v1.0, 2015-01-08, hotfix [#281](https://github.com/winlinvip/simple-rtmp-server/issues/281), fix hls bug ignore type-9 send aud. 1.0.20
 * v1.0, 2015-01-03, hotfix to remove the pageUrl for http callback. 1.0.19
@@ -396,14 +595,6 @@ Supported operating systems and hardware:
 * v1.0, 2014-12-22, hotfix [#264](https://github.com/winlinvip/simple-rtmp-server/issues/264), ignore NALU when sequence header to make HLS happy. 1.0.12
 * v1.0, 2014-12-20, hotfix [#264](https://github.com/winlinvip/simple-rtmp-server/issues/264), support disconnect publish connect when hls error. 1.0.11
 * <strong>v1.0, 2014-12-05, [1.0 release(1.0.10)](https://github.com/winlinvip/simple-rtmp-server/releases/tag/1.0) released. 59391 lines.</strong>
-* v1.0, 2014-12-02, hotfix [#239](https://github.com/winlinvip/simple-rtmp-server/pull/239), traverse the token before response connect. 1.0.10.
-* v1.0, 2014-11-25, update PRIMARY, AUTHORS, CONTRIBUTORS of SRS. 1.0.8.
-* v1.0, 2014-11-18, all wiki translated to English. 1.0.7.
-* v1.0, 2014-11-13, hotfix [#200](https://github.com/winlinvip/simple-rtmp-server/issues/200), deadloop when read/write 0 and ETIME. 1.0.6.
-* v1.0, 2014-11-06, use number for macro VERSION_MAJOR, VERSION_MINOR and VERSION_REVISION. 1.0.5.
-* v1.0, 2014-10-24, hotfix [#186](https://github.com/winlinvip/simple-rtmp-server/issues/186), drop connect args when not object. 1.0.3.
-* v1.0, 2014-10-24, rename wiki/xxx to wiki/v1_CN_xxx. 1.0.2.
-* v1.0, 2014-10-19, hotfix [#183](https://github.com/winlinvip/simple-rtmp-server/issues/183), donot support AnnexB when decoding RTMP body for HLS. 1.0.1.
 * <strong>v1.0, 2014-10-09, [1.0 beta(1.0.0)](https://github.com/winlinvip/simple-rtmp-server/releases/tag/1.0.beta) released. 59316 lines.</strong>
 * v1.0, 2014-10-08, fix [#151](https://github.com/winlinvip/simple-rtmp-server/issues/151), always reap ts whatever audio or video packet. 0.9.223.
 * v1.0, 2014-10-08, fix [#162](https://github.com/winlinvip/simple-rtmp-server/issues/162), failed if no epoll. 0.9.222.
@@ -593,42 +784,277 @@ Supported operating systems and hardware:
 
 ## Performance
 
-Performance benchmark history, on virtual box:
-
-* 2013-11-28, SRS 0.5.0,   1800clients, 90%CPU, 41MB. [benchmark](https://github.com/winlinvip/simple-rtmp-server/commit/023e23bc8261bec15a70a7ae932098fb4f82b679)
-* 2014-07-12, SRS 0.9.156, 1800clients, 68%CPU, 38MB. [benchmark](https://github.com/winlinvip/simple-rtmp-server/commit/e2d273f4939348374bf9644df9d54c4293b39c1a)
-* 2014-07-12, SRS 0.9.156, 2700clients, 89%CPU, 61MB. [benchmark](https://github.com/winlinvip/simple-rtmp-server/commit/6d12280b7cc54c465b1caf8b1402149e77c4c7d9)
-* 2014-11-11, SRS 1.0.5,   2700clients, 85%CPU, 66MB. (1.0 equals 2.0.12)
-
-Latest benchmark(2014-07-12):
-
-1.  300 connections,  150Mbps, 500kbps, CPU 5.7%, MEM 9208KB.
-1.  600 connections,  300Mbps, 500kbps, CPU 18.3%, MEM 13MB.
-1.  900 connections,  450Mbps, 500kbps, CPU 27.9%, MEM 20MB.
-1. 1200 connections,  600Mbps, 500kbps, CPU 43.9%, MEM 26MB.
-1. 1500 connections,  750Mbps, 500kbps, CPU 55.2%, MEM 32MB.
-1. 1800 connections,  900Mbps, 500kbps, CPU 68.8%, MEM 38MB.
-1. 2100 connections, 1050Mbps, 500kbps, CPU 75.7%, MEM 46MB.
-1. 2400 connections, 1200Mbps, 500kbps, CPU 83.7%, MEM 54MB.
-1. 2700 connections, 1350Mbps, 500kbps, CPU 89.9%, MEM 61MB.
-
-<pre>
-[winlin@dev6 srs]$ dstat
-----total-cpu-usage---- -dsk/total- ---net/lo-- ---paging-- ---system--
-usr sys idl wai hiq siq| read  writ| recv  send|  in   out | int   csw 
- 29  17  39   0   0  15|   0  5325B| 163M  163M|   0     0 |4331  3386 
- 30  16  38   0   0  16|   0  5325B| 160M  160M|   0     0 |4252  3332 
- 30  15  37   0   0  17|   0  7646B| 169M  169M|   0     0 |4015  2886 
- 30  17  36   0   0  17|   0  1638B| 197M  197M|   0     0 |4021  3037 
- 31  17  35   0   0  17|   0   410B| 204M  204M|   0     0 |4181  3243 
- 33  17  32   0   0  18|   0  2185B| 191M  191M|   0     0 |4305  3592 
- 31  15  36   0   0  18|   0  1229B| 127M  127M|   0     0 |4446  3822 
- 34  18  30   0   0  18|   0     0 | 231M  231M|   0     0 |4461  3691 
- 32  17  33   0   0  18|   0   410B| 169M  169M|   0     0 |4518  3788 
-</pre>
+Performance benchmark history, on virtual box.
 
 * See also: [Performance for x86/x64 Test Guide](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_Performance)
 * See also: [Performance for RaspberryPi](https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_RaspberryPi)
+
+### Play benchmark
+
+The play benchmark by [st-load](https://github.com/winlinvip/st-load):
+
+<table>
+    <tr>
+        <th>Update</th>
+        <th>SRS</th>
+        <th>Clients</th>
+        <th>Type</th>
+        <th>CPU</th>
+        <th>Memory</th>
+        <th>Commit</th>
+    </tr>
+    <tr>
+        <td>2013-11-28</td>
+        <td>0.5.0</td>
+        <td>1.8k(1800)</td>
+        <td>players</td>
+        <td>90%</td>
+        <td>41MB</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td>2014-07-12</td>
+        <td>0.9.156</td>
+        <td>1.8k(1800)</td>
+        <td>players</td>
+        <td>68%</td>
+        <td>38MB</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td>2014-07-12</td>
+        <td>0.9.156</td>
+        <td>2.7k(2700)</td>
+        <td>players</td>
+        <td>89%</td>
+        <td>61MB</td>
+        <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/1ae3e6c64cc5cee90e6050c26968ebc3c18281be">commit</a></td>
+    </tr>
+    <tr>
+        <td>2014-11-11</td>
+        <td>1.0.5</td>
+        <td>2.7k(2700)</td>
+        <td>players</td>
+        <td>85%</td>
+        <td>66MB</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td>2014-11-11</td>
+        <td>2.0.12</td>
+        <td>2.7k(2700)</td>
+        <td>players</td>
+        <td>85%</td>
+        <td>66MB</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td>2014-11-12</td>
+        <td>2.0.14</td>
+        <td>2.7k(2700)</td>
+        <td>players</td>
+        <td>69%</td>
+        <td>59MB</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td>2014-11-12</td>
+        <td>2.0.14</td>
+        <td>3.5k(3500)</td>
+        <td>players</td>
+        <td>95%</td>
+        <td>78MB</td>
+        <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/8acd143a7a152885b815999162660fd4e7a3f247">commit</a></td>
+    </tr>
+    <tr>
+        <td>2014-11-13</td>
+        <td>2.0.15</td>
+        <td>6.0k(6000)</td>
+        <td>players</td>
+        <td>82%</td>
+        <td>203MB</td>
+        <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/cc6aca9ad55342a06440ce7f3b38453776b2b2d1">commit</a></td>
+    </tr>
+    <tr>
+        <td>2014-11-22</td>
+        <td>2.0.30</td>
+        <td>7.5k(7500)</td>
+        <td>players</td>
+        <td>87%</td>
+        <td>320MB</td>
+        <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/58136ec178e3d47db6c90a59875d7e40946936e5">commit</a></td>
+    </tr>
+    <tr>
+        <td>2014-12-05</td>
+        <td>2.0.55</td>
+        <td>8.0k(8000)</td>
+        <td>players</td>
+        <td>89%</td>
+        <td>360MB</td>
+        <td>(mw_sleep=350)<br/><a href="https://github.com/winlinvip/simple-rtmp-server/commit/58136ec178e3d47db6c90a59875d7e40946936e5">commit</a></td>
+    </tr>
+    <tr>
+        <td>2014-12-05</td>
+        <td>2.0.57</td>
+        <td>9.0k(9000)</td>
+        <td>players</td>
+        <td>90%</td>
+        <td>468MB</td>
+        <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/9ee138746f83adc26f0e236ec017f4d68a300004">commit</a></td>
+    </tr>
+    <tr>
+        <td>2014-12-07</td>
+        <td>2.0.67</td>
+        <td>10k(10000)</td>
+        <td>players</td>
+        <td>95%</td>
+        <td>656MB</td>
+        <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/1311b6fe6576fd7b9c6d299b0f8f2e8d202f4bf8">commit</a></td>
+    </tr>
+</table>
+
+### Publish benchmark
+
+The publish benchmark by [st-load](https://github.com/winlinvip/st-load):
+
+<table>
+    <tr>
+        <th>Update</th>
+        <th>SRS</th>
+        <th>Clients</th>
+        <th>Type</th>
+        <th>CPU</th>
+        <th>Memory</th>
+        <th>Commit</th>
+    </tr>
+    <tr>
+        <td>2014-12-03</td>
+        <td>1.0.10</td>
+        <td>1.2k(1200)</td>
+        <td>publishers</td>
+        <td>96%</td>
+        <td>43MB</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td>2014-12-03</td>
+        <td>2.0.12</td>
+        <td>1.2k(1200)</td>
+        <td>publishers</td>
+        <td>96%</td>
+        <td>43MB</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td>2014-12-03</td>
+        <td>2.0.47</td>
+        <td>1.2k(1200)</td>
+        <td>publishers</td>
+        <td>84%</td>
+        <td>76MB</td>
+        <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/787ab674e38734ea8e0678101614fdcd84645dc8">commit</a></td>
+    </tr>
+    <tr>
+        <td>2014-12-03</td>
+        <td>2.0.47</td>
+        <td>1.4k(1400)</td>
+        <td>publishers</td>
+        <td>95%</td>
+        <td>140MB</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td>2014-12-03</td>
+        <td>2.0.48</td>
+        <td>1.4k(1400)</td>
+        <td>publishers</td>
+        <td>95%</td>
+        <td>140MB</td>
+        <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/f35ec2155b1408d528a9f37da7904c9625186bcf">commit</a></td>
+    </tr>
+    <tr>
+        <td>2014-12-04</td>
+        <td>2.0.49</td>
+        <td>1.4k(1400)</td>
+        <td>publishers</td>
+        <td>68%</td>
+        <td>144MB</td>
+        <td>-</td>
+    </tr>
+    <tr>
+        <td>2014-12-04</td>
+        <td>2.0.49</td>
+        <td>2.5k(2500)</td>
+        <td>publishers</td>
+        <td>95%</td>
+        <td>404MB</td>
+        <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/29324fab469e0f7cef9ad04ffdbce832ac7dd9ff">commit</a></td>
+    </tr>
+    <tr>
+        <td>2014-12-04</td>
+        <td>2.0.51</td>
+        <td>2.5k(2500)</td>
+        <td>publishers</td>
+        <td>91%</td>
+        <td>259MB</td>
+        <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/f57801eb46c16755b173984b915a4166922df6a6">commit</a></td>
+    </tr>
+    <tr>
+        <td>2014-12-04</td>
+        <td>2.0.52</td>
+        <td>4.0k(4000)</td>
+        <td>publishers</td>
+        <td>80%</td>
+        <td>331MB</td>
+        <td>(mr_sleep=350)<br/><a href="https://github.com/winlinvip/simple-rtmp-server/commit/5589b13d2e216b91f97afb78ee0c011b2fccf7da">commit</a></td>
+    </tr>
+</table>
+
+### Latency benchmark
+
+The latency between encoder and player with realtime config(
+[CN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_CN_LowLatency),
+[EN](https://github.com/winlinvip/simple-rtmp-server/wiki/v2_EN_LowLatency)
+):
+
+<table>
+<tr>
+    <th>Update</th>
+    <th>SRS</th>
+    <th>VP6</th>
+    <th>H.264</th>
+    <th>VP6+mp3</th>
+    <th>H.264+mp3</th>
+</tr>
+<tr>
+    <td>2014-12-03</td>
+    <td>1.0.10</td>
+    <td>0.4s</td>
+    <td>0.4s</td>
+    <td>0.9s</td>
+    <td>1.2s</td>
+</tr>
+<tr>
+    <td>2014-12-12</td>
+    <td>2.0.70</td>
+    <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/10297fab519811845b549a8af40a6bcbd23411e8">0.1s</a></td>
+    <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/10297fab519811845b549a8af40a6bcbd23411e8">0.4s</a></td>
+    <td>1.0s</td>
+    <td>0.9s</td>
+</tr>
+<tr>
+    <td>2014-12-16</td>
+    <td>2.0.72</td>
+    <td>0.1s</td>
+    <td>0.4s</td>
+    <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/0d6b91039d408328caab31a1077d56a809b6bebc">0.8s</a></td>
+    <td><a href="https://github.com/winlinvip/simple-rtmp-server/commit/0d6b91039d408328caab31a1077d56a809b6bebc">0.6s</a></td>
+</tr>
+</table>
+
+We use FMLE as encoder for benchmark. The latency of server is 0.1s+, 
+and the bottleneck is the encoder. For more information, read 
+[bug #257](https://github.com/winlinvip/simple-rtmp-server/issues/257#issuecomment-66864413).
 
 ## Architecture
 

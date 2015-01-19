@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -23,8 +23,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <srs_kernel_flv.hpp>
 
-#include <fcntl.h>
+// for srs-librtmp, @see https://github.com/winlinvip/simple-rtmp-server/issues/213
+#ifndef _WIN32
 #include <unistd.h>
+#endif
+
+#include <fcntl.h>
 #include <sstream>
 using namespace std;
 
@@ -55,7 +59,7 @@ int SrsFlvEncoder::initialize(SrsFileWriter* fs)
     
     if (!fs->is_open()) {
         ret = ERROR_KERNEL_FLV_STREAM_CLOSED;
-        srs_warn("stream is not open for decoder. ret=%d", ret);
+        srs_warn("stream is not open for encoder. ret=%d", ret);
         return ret;
     }
     
@@ -106,7 +110,7 @@ int SrsFlvEncoder::write_header(char flv_header[9])
     return ret;
 }
 
-int SrsFlvEncoder::write_metadata(char* data, int size)
+int SrsFlvEncoder::write_metadata(char type, char* data, int size)
 {
     int ret = ERROR_SUCCESS;
     
@@ -114,7 +118,7 @@ int SrsFlvEncoder::write_metadata(char* data, int size)
     
     // 11 bytes tag header
     static char tag_header[] = {
-        (char)18, // TagType UB [5], 18 = script data
+        (char)type, // TagType UB [5], 18 = script data
         (char)0x00, (char)0x00, (char)0x00, // DataSize UI24 Length of the message.
         (char)0x00, (char)0x00, (char)0x00, // Timestamp UI24 Time in milliseconds at which the data in this tag applies.
         (char)0x00, // TimestampExtended UI8
@@ -157,7 +161,7 @@ int SrsFlvEncoder::write_audio(int64_t timestamp, char* data, int size)
         return ret;
     }
     tag_stream->write_3bytes(size);
-    tag_stream->write_3bytes(timestamp);
+    tag_stream->write_3bytes((int32_t)timestamp);
     // default to little-endian
     tag_stream->write_1bytes((timestamp >> 24) & 0xFF);
     
@@ -191,7 +195,7 @@ int SrsFlvEncoder::write_video(int64_t timestamp, char* data, int size)
         return ret;
     }
     tag_stream->write_3bytes(size);
-    tag_stream->write_3bytes(timestamp);
+    tag_stream->write_3bytes((int32_t)timestamp);
     // default to little-endian
     tag_stream->write_1bytes((timestamp >> 24) & 0xFF);
     
@@ -312,6 +316,7 @@ int SrsFlvDecoder::read_tag_header(char* ptype, int32_t* pdata_size, u_int32_t* 
     
     // DataSize UI24
     char* pp = (char*)pdata_size;
+    pp[3] = 0;
     pp[2] = th[1];
     pp[1] = th[2];
     pp[0] = th[3];

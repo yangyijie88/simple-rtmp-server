@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -29,9 +29,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 // current release version
-#define VERSION_MAJOR       1
+#define VERSION_MAJOR       2
 #define VERSION_MINOR       0
-#define VERSION_REVISION    21
+#define VERSION_REVISION    100
+
 // server info.
 #define RTMP_SIG_SRS_KEY "SRS"
 #define RTMP_SIG_SRS_ROLE "origin/edge server"
@@ -41,13 +42,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define RTMP_SIG_SRS_WEB "http://blog.csdn.net/win_lin"
 #define RTMP_SIG_SRS_EMAIL "winlin@vip.126.com"
 #define RTMP_SIG_SRS_LICENSE "The MIT License (MIT)"
-#define RTMP_SIG_SRS_COPYRIGHT "Copyright (c) 2013-2014 winlin"
+#define RTMP_SIG_SRS_COPYRIGHT "Copyright (c) 2013-2015 winlin"
 #define RTMP_SIG_SRS_PRIMARY "winlin"
 #define RTMP_SIG_SRS_AUTHROS "wenjie.zhao"
 #define RTMP_SIG_SRS_CONTRIBUTORS_URL RTMP_SIG_SRS_URL"/blob/master/AUTHORS.txt"
 #define RTMP_SIG_SRS_HANDSHAKE RTMP_SIG_SRS_KEY"("RTMP_SIG_SRS_VERSION")"
-#define RTMP_SIG_SRS_RELEASE "https://github.com/winlinvip/simple-rtmp-server/tree/1.0release"
-#define RTMP_SIG_SRS_HTTP_SERVER "https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_HTTPServer#feature"
+#define RTMP_SIG_SRS_RELEASE RTMP_SIG_SRS_URL"/tree/1.0release"
+#define RTMP_SIG_SRS_ISSUES(id) RTMP_SIG_SRS_URL"/issues/"#id
 #define RTMP_SIG_SRS_VERSION __SRS_XSTR(VERSION_MAJOR)"."__SRS_XSTR(VERSION_MINOR)"."__SRS_XSTR(VERSION_REVISION)
 
 // internal macros, covert macro values to str,
@@ -71,7 +72,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #ifndef __STDC_FORMAT_MACROS
     #define __STDC_FORMAT_MACROS
 #endif
+
+// for srs-librtmp, @see https://github.com/winlinvip/simple-rtmp-server/issues/213
+#ifndef _WIN32
 #include <inttypes.h>
+#endif
 
 #include <assert.h>
 #define srs_assert(expression) assert(expression)

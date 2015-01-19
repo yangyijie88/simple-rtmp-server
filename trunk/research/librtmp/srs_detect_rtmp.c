@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -35,7 +35,7 @@ int main(int argc, char** argv)
     srs_rtmp_t rtmp;
     
     // time
-    int64_t time_startup = srs_get_time_ms();
+    int64_t time_startup = srs_utils_time_ms();
     int64_t time_dns_resolve = 0;
     int64_t time_socket_connect = 0;
     int64_t time_play_stream = 0;
@@ -49,18 +49,23 @@ int main(int argc, char** argv)
     int64_t bytes_nrecv = 0;
     
     // packet data
-    int type, size;
-    u_int32_t basetime = 0;
-    u_int32_t timestamp = 0;
+    int size;
+    char type;
     char* data;
+    u_int32_t timestamp;
+    u_int32_t basetime = 0;
     
     // user options
     const char* rtmp_url = NULL;
     int duration = 0;
     int timeout = 0;
+
+    printf("detect rtmp stream\n");
+    printf("srs(simple-rtmp-server) client librtmp library.\n");
+    printf("version: %d.%d.%d\n", srs_version_major(), srs_version_minor(), srs_version_revision());
     
     if (argc <= 3) {
-        printf("detect stream on RTMP server\n"
+        printf("detect stream on RTMP server, print result to stderr.\n"
             "Usage: %s <rtmp_url> <duration> <timeout>\n"
             "   rtmp_url     RTMP stream url to play\n"
             "   duration     how long to play, in seconds, stream time.\n"
@@ -68,73 +73,67 @@ int main(int argc, char** argv)
             "For example:\n"
             "   %s rtmp://127.0.0.1:1935/live/livestream 3 10\n",
             argv[0], argv[0]);
-        ret = 1;
-        exit(ret);
-        return ret;
+        exit(-1);
     }
     
     rtmp_url = argv[1];
     duration = atoi(argv[2]);
     timeout = atoi(argv[3]);
     
-    printf("detect rtmp stream\n");
-    printf("srs(simple-rtmp-server) client librtmp library.\n");
-    printf("version: %d.%d.%d\n", srs_version_major(), srs_version_minor(), srs_version_revision());
-    printf("rtmp url: %s\n", rtmp_url);
-    printf("duration: %ds, timeout:%ds\n", duration, timeout);
+    srs_human_trace("rtmp url: %s", rtmp_url);
+    srs_human_trace("duration: %ds, timeout:%ds", duration, timeout);
     
     if (duration <= 0 || timeout <= 0) {
-        ret = 1;
-        fprintf(stderr, "duration and timeout must be positive. ret=%d\n", ret);
-        exit(ret);
-        return ret;
+        srs_human_trace("duration and timeout must be positive.");
+        exit(-2);
     }
     
     rtmp = srs_rtmp_create(rtmp_url);
     
-    if ((ret = __srs_dns_resolve(rtmp)) != 0) {
-        fprintf(stderr, "dns resolve failed. ret=%d\n", ret);
+    if ((ret = __srs_rtmp_dns_resolve(rtmp)) != 0) {
+        srs_human_trace("dns resolve failed. ret=%d", ret);
         goto rtmp_destroy;
     }
-    printf("dns resolve success\n");
-    time_dns_resolve = srs_get_time_ms();
+    srs_human_trace("dns resolve success");
+    time_dns_resolve = srs_utils_time_ms();
     
-    if ((ret = __srs_connect_server(rtmp)) != 0) {
-        fprintf(stderr, "socket connect failed. ret=%d\n", ret);
+    if ((ret = __srs_rtmp_connect_server(rtmp)) != 0) {
+        srs_human_trace("socket connect failed. ret=%d", ret);
         goto rtmp_destroy;
     }
-    printf("socket connect success\n");
-    time_socket_connect = srs_get_time_ms();
+    srs_human_trace("socket connect success");
+    time_socket_connect = srs_utils_time_ms();
     
-    if ((ret = __srs_do_simple_handshake(rtmp)) != 0) {
-        fprintf(stderr, "do simple handshake failed. ret=%d\n", ret);
+    if ((ret = __srs_rtmp_do_simple_handshake(rtmp)) != 0) {
+        srs_human_trace("do simple handshake failed. ret=%d", ret);
         goto rtmp_destroy;
     }
-    printf("do simple handshake success\n");
+    srs_human_trace("do simple handshake success");
     
-    if ((ret = srs_connect_app(rtmp)) != 0) {
-        fprintf(stderr, "connect vhost/app failed. ret=%d\n", ret);
+    if ((ret = srs_rtmp_connect_app(rtmp)) != 0) {
+        srs_human_trace("connect vhost/app failed. ret=%d", ret);
         goto rtmp_destroy;
     }
-    printf("connect vhost/app success\n");
+    srs_human_trace("connect vhost/app success");
     
-    if ((ret = srs_play_stream(rtmp)) != 0) {
-        fprintf(stderr, "play stream failed. ret=%d\n", ret);
+    if ((ret = srs_rtmp_play_stream(rtmp)) != 0) {
+        srs_human_trace("play stream failed. ret=%d", ret);
         goto rtmp_destroy;
     }
-    printf("play stream success\n");
-    time_play_stream = srs_get_time_ms();
+    srs_human_trace("play stream success");
+    time_play_stream = srs_utils_time_ms();
     
     for (;;) {
-        if ((ret = srs_read_packet(rtmp, &type, &timestamp, &data, &size)) != 0) {
-            fprintf(stderr, "read packet failed. ret=%d\n", ret);
+        if ((ret = srs_rtmp_read_packet(rtmp, &type, &timestamp, &data, &size)) != 0) {
+            srs_human_trace("read packet failed. ret=%d", ret);
             goto rtmp_destroy;
         }
-        printf("got packet: type=%s, time=%d, size=%d\n", srs_type2string(type), timestamp, size);
+        srs_human_trace("got packet: type=%s, time=%d, size=%d", 
+            srs_human_flv_tag_type2string(type), timestamp, size);
         
         if (SRS_RTMP_TYPE_VIDEO == type || SRS_RTMP_TYPE_AUDIO == type) {
             if (time_first_packet <= 0) {
-                time_first_packet = srs_get_time_ms();
+                time_first_packet = srs_utils_time_ms();
             }
             if (basetime <= 0) {
                 basetime = timestamp;
@@ -143,23 +142,23 @@ int main(int argc, char** argv)
         
         free(data);
         
-        if (srs_get_time_ms() - time_startup > timeout * 1000) {
-            printf("timeout, terminate.\n");
+        if (srs_utils_time_ms() - time_startup > timeout * 1000) {
+            srs_human_trace("timeout, terminate.");
             goto rtmp_destroy;
         }
         
         if ((timestamp - basetime) > duration * 1000) {
-            printf("duration exceed, terminate.\n");
+            srs_human_trace("duration exceed, terminate.");
             goto rtmp_destroy;
         }
     }
     
 rtmp_destroy:
-    bytes_nsend = srs_get_nsend_bytes(rtmp);
-    bytes_nrecv = srs_get_nrecv_bytes(rtmp);
+    bytes_nsend = srs_utils_send_bytes(rtmp);
+    bytes_nrecv = srs_utils_recv_bytes(rtmp);
     
     srs_rtmp_destroy(rtmp);
-    time_cleanup = srs_get_time_ms();
+    time_cleanup = srs_utils_time_ms();
     time_duration = (int)(time_cleanup - time_startup);
     
     // print result to stderr.
@@ -197,7 +196,9 @@ rtmp_destroy:
         "\"remark1\": \"delay = stream - (time_cleanup - time_first_packet)\"",
         "\"remark2\": \"if code is not 0, user must ignore all data\""
     );
-    printf("\n");
+    
+    srs_human_trace(" ");
+    srs_human_trace("completed");
     
     return ret;
 }

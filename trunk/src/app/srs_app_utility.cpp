@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -36,8 +36,9 @@ using namespace std;
 #include <srs_kernel_error.hpp>
 #include <srs_app_kbps.hpp>
 #include <srs_app_json.hpp>
+#include <srs_kernel_stream.hpp>
 
-int srs_socket_connect(std::string server, int port, int64_t timeout, st_netfd_t* pstfd)
+int srs_socket_connect(string server, int port, int64_t timeout, st_netfd_t* pstfd)
 {
     int ret = ERROR_SUCCESS;
     
@@ -89,7 +90,7 @@ failed:
     return ret;
 }
 
-int srs_get_log_level(std::string level)
+int srs_get_log_level(string level)
 {
     if ("verbose" == level) {
         return SrsLogLevel::Verbose;
@@ -439,7 +440,7 @@ bool srs_get_disk_diskstats_stat(SrsDiskStat& r)
         unsigned int nb_current = 0;
         unsigned int ticks = 0;
         unsigned int aveq = 0;
-        memset(name, sizeof(name), 0);
+        memset(name, 0, sizeof(name));
         
         sscanf(buf, "%4d %4d %31s %u %u %llu %u %u %u %llu %u %u %u %u", 
             &major, 

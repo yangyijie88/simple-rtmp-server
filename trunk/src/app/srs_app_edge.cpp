@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -69,7 +69,7 @@ SrsEdgeIngester::SrsEdgeIngester()
     origin_index = 0;
     stream_id = 0;
     stfd = NULL;
-    pthread = new SrsThread(this, SRS_EDGE_INGESTER_SLEEP_US, true);
+    pthread = new SrsThread("edge-igs", this, SRS_EDGE_INGESTER_SLEEP_US, true);
 }
 
 SrsEdgeIngester::~SrsEdgeIngester()
@@ -170,9 +170,6 @@ int SrsEdgeIngester::ingest()
     SrsPithyPrint pithy_print(SRS_CONSTS_STAGE_EDGE);
 
     while (pthread->can_loop()) {
-        // switch to other st-threads.
-        st_usleep(0);
-        
         pithy_print.elapse();
         
         // pithy print
@@ -186,7 +183,7 @@ int SrsEdgeIngester::ingest()
         }
 
         // read from client.
-        SrsMessage* msg = NULL;
+        SrsCommonMessage* msg = NULL;
         if ((ret = client->recv_message(&msg)) != ERROR_SUCCESS) {
             if (!srs_is_client_gracefully_close(ret)) {
                 srs_error("pull origin server message failed. ret=%d", ret);
@@ -196,7 +193,7 @@ int SrsEdgeIngester::ingest()
         srs_verbose("edge loop recv message. ret=%d", ret);
         
         srs_assert(msg);
-        SrsAutoFree(SrsMessage, msg);
+        SrsAutoFree(SrsCommonMessage, msg);
         
         if ((ret = process_publish_message(msg)) != ERROR_SUCCESS) {
             return ret;
@@ -259,7 +256,7 @@ int SrsEdgeIngester::connect_app(string ep_server, string ep_port)
     return ret;
 }
 
-int SrsEdgeIngester::process_publish_message(SrsMessage* msg)
+int SrsEdgeIngester::process_publish_message(SrsCommonMessage* msg)
 {
     int ret = ERROR_SUCCESS;
     
@@ -389,7 +386,7 @@ SrsEdgeForwarder::SrsEdgeForwarder()
     origin_index = 0;
     stream_id = 0;
     stfd = NULL;
-    pthread = new SrsThread(this, SRS_EDGE_FORWARDER_SLEEP_US, true);
+    pthread = new SrsThread("edge-fwr", this, SRS_EDGE_FORWARDER_SLEEP_US, true);
     queue = new SrsMessageQueue();
     send_error_code = ERROR_SUCCESS;
 }
@@ -478,12 +475,9 @@ int SrsEdgeForwarder::cycle()
     
     SrsPithyPrint pithy_print(SRS_CONSTS_STAGE_EDGE);
     
-    SrsSharedPtrMessageArray msgs(SYS_MAX_EDGE_SEND_MSGS);
+    SrsMessageArray msgs(SYS_MAX_EDGE_SEND_MSGS);
 
     while (pthread->can_loop()) {
-        // switch to other st-threads.
-        st_usleep(0);
-        
         if (send_error_code != ERROR_SUCCESS) {
             st_usleep(SRS_EDGE_FORWARDER_ERROR_US);
             continue;
@@ -491,7 +485,7 @@ int SrsEdgeForwarder::cycle()
 
         // read from client.
         if (true) {
-            SrsMessage* msg = NULL;
+            SrsCommonMessage* msg = NULL;
             ret = client->recv_message(&msg);
             
             srs_verbose("edge loop recv message. ret=%d", ret);
@@ -505,8 +499,9 @@ int SrsEdgeForwarder::cycle()
         }
         
         // forward all messages.
+        // each msg in msgs.msgs must be free, for the SrsMessageArray never free them.
         int count = 0;
-        if ((ret = queue->dump_packets(msgs.size, msgs.msgs, count)) != ERROR_SUCCESS) {
+        if ((ret = queue->dump_packets(msgs.max, msgs.msgs, count)) != ERROR_SUCCESS) {
             srs_error("get message to push to origin failed. ret=%d", ret);
             return ret;
         }
@@ -529,26 +524,17 @@ int SrsEdgeForwarder::cycle()
             continue;
         }
     
-        // all msgs to forward to origin.
-        // @remark, becareful, all msgs must be free explicitly,
-        //      free by send_and_free_message or srs_freep.
-        for (int i = 0; i < count; i++) {
-            SrsSharedPtrMessage* msg = msgs.msgs[i];
-            
-            srs_assert(msg);
-            msgs.msgs[i] = NULL;
-            
-            if ((ret = client->send_and_free_message(msg, stream_id)) != ERROR_SUCCESS) {
-                srs_error("edge publish push message to server failed. ret=%d", ret);
-                return ret;
-            }
+        // sendout messages, all messages are freed by send_and_free_messages().
+        if ((ret = client->send_and_free_messages(msgs.msgs, count, stream_id)) != ERROR_SUCCESS) {
+            srs_error("edge publish push message to server failed. ret=%d", ret);
+            return ret;
         }
     }
     
     return ret;
 }
 
-int SrsEdgeForwarder::proxy(SrsMessage* msg)
+int SrsEdgeForwarder::proxy(SrsCommonMessage* msg)
 {
     int ret = ERROR_SUCCESS;
     
@@ -574,7 +560,7 @@ int SrsEdgeForwarder::proxy(SrsMessage* msg)
     }
     srs_verbose("initialize shared ptr msg success.");
     
-    copy.header.stream_id = stream_id;
+    copy.stream_id = stream_id;
     if ((ret = queue->enqueue(copy.copy())) != ERROR_SUCCESS) {
         srs_error("enqueue edge publish msg failed. ret=%d", ret);
     }
@@ -839,7 +825,7 @@ int SrsPublishEdge::on_client_publish()
     return ret;
 }
 
-int SrsPublishEdge::on_proxy_publish(SrsMessage* msg)
+int SrsPublishEdge::on_proxy_publish(SrsCommonMessage* msg)
 {
     return forwarder->proxy(msg);
 }

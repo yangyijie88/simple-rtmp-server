@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -48,6 +48,11 @@ using namespace std;
 #include <srs_app_utility.hpp>
 #include <srs_protocol_msg_array.hpp>
 #include <srs_protocol_amf0.hpp>
+#include <srs_app_recv_thread.hpp>
+#include <srs_core_performance.hpp>
+#include <srs_kernel_utility.hpp>
+#include <srs_app_security.hpp>
+#include <srs_app_statistic.hpp>
 
 // when stream is busy, for example, streaming is already
 // publishing, when a new client to request to publish,
@@ -69,9 +74,6 @@ using namespace std;
 // when edge timeout, retry next.
 #define SRS_EDGE_TOKEN_TRAVERSE_TIMEOUT_US (int64_t)(3*1000*1000LL)
 
-// to get msgs then totally send out.
-#define SYS_MAX_PLAY_SEND_MSGS 128
-
 SrsRtmpConn::SrsRtmpConn(SrsServer* srs_server, st_netfd_t client_stfd)
     : SrsConnection(srs_server, client_stfd)
 {
@@ -81,9 +83,14 @@ SrsRtmpConn::SrsRtmpConn(SrsServer* srs_server, st_netfd_t client_stfd)
     rtmp = new SrsRtmpServer(skt);
     refer = new SrsRefer();
     bandwidth = new SrsBandwidth();
+    security = new SrsSecurity();
     duration = 0;
     kbps = new SrsKbps();
     kbps->set_io(skt, skt);
+    
+    mw_sleep = SRS_PERF_MW_SLEEP;
+    mw_enabled = false;
+    realtime = SRS_PERF_MIN_LATENCY_ENABLED;
     
     _srs_config->subscribe(this);
 }
@@ -98,6 +105,7 @@ SrsRtmpConn::~SrsRtmpConn()
     srs_freep(skt);
     srs_freep(refer);
     srs_freep(bandwidth);
+    srs_freep(security);
     srs_freep(kbps);
 }
 
@@ -127,6 +135,9 @@ int SrsRtmpConn::do_cycle()
         return ret;
     }
     srs_verbose("rtmp connect app success");
+    
+    // set client ip to request.
+    req->ip = ip;
     
     // discovery vhost, resolve the vhost from config
     SrsConfDirective* parsed_vhost = _srs_config->get_vhost(req->vhost);
@@ -189,6 +200,8 @@ int SrsRtmpConn::do_cycle()
     
     ret = service_cycle();
     http_hooks_on_close();
+    SrsStatistic* stat = SrsStatistic::instance();
+    stat->on_close(_srs_context->get_id());
     
     return ret;
 }
@@ -207,6 +220,37 @@ int SrsRtmpConn::on_reload_vhost_removed(string vhost)
         
     srs_close_stfd(stfd);
     
+    return ret;
+}
+
+int SrsRtmpConn::on_reload_vhost_mw(string vhost)
+{
+    int ret = ERROR_SUCCESS;
+    
+    if (req->vhost != vhost) {
+        return ret;
+    }
+    
+    int sleep_ms = _srs_config->get_mw_sleep_ms(req->vhost);
+    
+    // when mw_sleep changed, resize the socket send buffer.
+    change_mw_sleep(sleep_ms);
+
+    return ret;
+}
+
+int SrsRtmpConn::on_reload_vhost_realtime(string vhost)
+{
+    int ret = ERROR_SUCCESS;
+    
+    if (req->vhost != vhost) {
+        return ret;
+    }
+    
+    bool realtime_enabled = _srs_config->get_realtime_enabled(req->vhost);
+    srs_trace("realtime changed %d=>%d", realtime, realtime_enabled);
+    realtime = realtime_enabled;
+
     return ret;
 }
 
@@ -325,6 +369,13 @@ int SrsRtmpConn::stream_service_cycle()
     req->strip();
     srs_trace("client identified, type=%s, stream_name=%s, duration=%.2f", 
         srs_client_type_string(type).c_str(), req->stream.c_str(), req->duration);
+    
+    // security check
+    if ((ret = security->check(type, ip, req)) != ERROR_SUCCESS) {
+        srs_error("security check failed. ret=%d", ret);
+        return ret;
+    }
+    srs_info("security check ok");
 
     // client is identified, set the timeout to service timeout.
     rtmp->set_recv_timeout(SRS_CONSTS_RTMP_RECV_TIMEOUT_US);
@@ -342,11 +393,18 @@ int SrsRtmpConn::stream_service_cycle()
     
     // find a source to serve.
     SrsSource* source = NULL;
-    if ((ret = SrsSource::find(req, &source)) != ERROR_SUCCESS) {
+    if ((ret = SrsSource::find(req, server, &source)) != ERROR_SUCCESS) {
         return ret;
     }
     srs_assert(source != NULL);
     
+    // update the statistic when source disconveried.
+    SrsStatistic* stat = SrsStatistic::instance();
+    if ((ret = stat->on_client(_srs_context->get_id(), req)) != ERROR_SUCCESS) {
+        srs_error("stat client failed. ret=%d", ret);
+        return ret;
+    }
+
     // check ASAP, to fail it faster if invalid.
     if (type != SrsRtmpConnPlay && !vhost_is_edge) {
         // check publish available
@@ -362,7 +420,7 @@ int SrsRtmpConn::stream_service_cycle()
     }
     
     bool enabled_cache = _srs_config->get_gop_cache(req->vhost);
-    srs_trace("source url=%s, ip=%s, cache=%d, is_edge=%d, source_id=%d[%d]", 
+    srs_trace("source url=%s, ip=%s, cache=%d, is_edge=%d, source_id=%d[%d]",
         req->get_stream_url().c_str(), ip.c_str(), enabled_cache, vhost_is_edge, 
         source->source_id(), source->source_id());
     source->set_cache(enabled_cache);
@@ -504,62 +562,114 @@ int SrsRtmpConn::playing(SrsSource* source)
 {
     int ret = ERROR_SUCCESS;
     
+    // create consumer of souce.
+    SrsConsumer* consumer = NULL;
+    if ((ret = source->create_consumer(consumer)) != ERROR_SUCCESS) {
+        srs_error("create consumer failed. ret=%d", ret);
+        return ret;
+    }
+    SrsAutoFree(SrsConsumer, consumer);
+    srs_verbose("consumer created success.");
+    
+    // use isolate thread to recv, 
+    // @see: https://github.com/winlinvip/simple-rtmp-server/issues/217
+    SrsQueueRecvThread trd(consumer, rtmp, SRS_PERF_MW_SLEEP);
+    
+    // start isolate recv thread.
+    if ((ret = trd.start()) != ERROR_SUCCESS) {
+        srs_error("start isolate recv thread failed. ret=%d", ret);
+        return ret;
+    }
+    
+    // delivery messages for clients playing stream.
+    ret = do_playing(source, consumer, &trd);
+    
+    // stop isolate recv thread
+    trd.stop();
+    
+    // warn for the message is dropped.
+    if (!trd.empty()) {
+        srs_warn("drop the received %d messages", trd.size());
+    }
+    
+    return ret;
+}
+
+int SrsRtmpConn::do_playing(SrsSource* source, SrsConsumer* consumer, SrsQueueRecvThread* trd)
+{
+    int ret = ERROR_SUCCESS;
+    
+    srs_assert(consumer != NULL);
+    
     if ((ret = refer->check(req->pageUrl, _srs_config->get_refer_play(req->vhost))) != ERROR_SUCCESS) {
         srs_error("check play_refer failed. ret=%d", ret);
         return ret;
     }
     srs_verbose("check play_refer success.");
     
-    SrsConsumer* consumer = NULL;
-    if ((ret = source->create_consumer(consumer)) != ERROR_SUCCESS) {
-        srs_error("create consumer failed. ret=%d", ret);
-        return ret;
-    }
-    
-    srs_assert(consumer != NULL);
-    SrsAutoFree(SrsConsumer, consumer);
-    srs_verbose("consumer created success.");
-    
-    rtmp->set_recv_timeout(SRS_CONSTS_RTMP_PULSE_TIMEOUT_US);
-    
+    // initialize other components
     SrsPithyPrint pithy_print(SRS_CONSTS_STAGE_PLAY_USER);
-    
-    SrsSharedPtrMessageArray msgs(SYS_MAX_PLAY_SEND_MSGS);
-
+    SrsMessageArray msgs(SRS_PERF_MW_MSGS);
     bool user_specified_duration_to_stop = (req->duration > 0);
     int64_t starttime = -1;
     
+    // setup the realtime.
+    realtime = _srs_config->get_realtime_enabled(req->vhost);
+    // setup the mw config.
+    // when mw_sleep changed, resize the socket send buffer.
+    mw_enabled = true;
+    change_mw_sleep(_srs_config->get_mw_sleep_ms(req->vhost));
+    
     while (true) {
-        // collect elapse for pithy print.
-        pithy_print.elapse();
-
-        // read from client.
-        if (true) {
-            SrsMessage* msg = NULL;
-            ret = rtmp->recv_message(&msg);
-            srs_verbose("play loop recv message. ret=%d", ret);
+        // to use isolate thread to recv, can improve about 33% performance.
+        // @see: https://github.com/winlinvip/simple-rtmp-server/issues/196
+        // @see: https://github.com/winlinvip/simple-rtmp-server/issues/217
+        while (!trd->empty()) {
+            SrsCommonMessage* msg = trd->pump();
+            srs_verbose("pump client message to process.");
             
-            if (ret == ERROR_SOCKET_TIMEOUT) {
-                // it's ok, do nothing.
-                ret = ERROR_SUCCESS;
-            } else if (ret != ERROR_SUCCESS) {
-                if (!srs_is_client_gracefully_close(ret)) {
-                    srs_error("recv client control message failed. ret=%d", ret);
+            if ((ret = process_play_control_msg(consumer, msg)) != ERROR_SUCCESS) {
+                if (!srs_is_system_control_error(ret) && !srs_is_client_gracefully_close(ret)) {
+                    srs_error("process play control message failed. ret=%d", ret);
                 }
                 return ret;
-            } else {
-                if ((ret = process_play_control_msg(consumer, msg)) != ERROR_SUCCESS) {
-                    if (!srs_is_system_control_error(ret)) {
-                        srs_error("process play control message failed. ret=%d", ret);
-                    }
-                    return ret;
-                }
             }
         }
         
+        // quit when recv thread error.
+        if ((ret = trd->error_code()) != ERROR_SUCCESS) {
+            if (!srs_is_client_gracefully_close(ret)) {
+                srs_error("recv thread failed. ret=%d", ret);
+            }
+            return ret;
+        }
+        
+        // collect elapse for pithy print.
+        pithy_print.elapse();
+        
+#ifdef SRS_PERF_QUEUE_COND_WAIT
+        // for send wait time debug
+        srs_verbose("send thread now=%"PRId64"us, wait %dms", srs_update_system_time_ms(), mw_sleep);
+        
+        // wait for message to incoming.
+        // @see https://github.com/winlinvip/simple-rtmp-server/issues/251
+        // @see https://github.com/winlinvip/simple-rtmp-server/issues/257
+        if (realtime) {
+            // for realtime, min required msgs is 0, send when got one+ msgs.
+            consumer->wait(0, mw_sleep);
+        } else {
+            // for no-realtime, got some msgs then send.
+            consumer->wait(SRS_PERF_MW_MIN_MSGS, mw_sleep);
+        }
+        
+        // for send wait time debug
+        srs_verbose("send thread now=%"PRId64"us wakeup", srs_update_system_time_ms());
+#endif
+        
         // get messages from consumer.
+        // each msg in msgs.msgs must be free, for the SrsMessageArray never free them.
         int count = 0;
-        if ((ret = consumer->dump_packets(msgs.size, msgs.msgs, count)) != ERROR_SUCCESS) {
+        if ((ret = consumer->dump_packets(&msgs, count)) != ERROR_SUCCESS) {
             srs_error("get messages from consumer failed. ret=%d", ret);
             return ret;
         }
@@ -568,39 +678,60 @@ int SrsRtmpConn::playing(SrsSource* source)
         if (pithy_print.can_print()) {
             kbps->sample();
             srs_trace("-> "SRS_CONSTS_LOG_PLAY
-                " time=%"PRId64", msgs=%d, okbps=%d,%d,%d, ikbps=%d,%d,%d", 
+                " time=%"PRId64", msgs=%d, okbps=%d,%d,%d, ikbps=%d,%d,%d, mw=%d",
                 pithy_print.age(), count,
                 kbps->get_send_kbps(), kbps->get_send_kbps_30s(), kbps->get_send_kbps_5m(),
-                kbps->get_recv_kbps(), kbps->get_recv_kbps_30s(), kbps->get_recv_kbps_5m());
+                kbps->get_recv_kbps(), kbps->get_recv_kbps_30s(), kbps->get_recv_kbps_5m(),
+                mw_sleep
+            );
         }
         
-        // sendout messages
-        // @remark, becareful, all msgs must be free explicitly,
-        //      free by send_and_free_message or srs_freep.
-        for (int i = 0; i < count; i++) {
-            SrsSharedPtrMessage* msg = msgs.msgs[i];
-            
-            // the send_message will free the msg, 
-            // so set the msgs[i] to NULL.
-            msgs.msgs[i] = NULL;
-            
-            // only when user specifies the duration, 
-            // we start to collect the durations for each message.
-            if (user_specified_duration_to_stop) {
+        // we use wait timeout to get messages,
+        // for min latency event no message incoming,
+        // so the count maybe zero.
+        if (count > 0) {
+            srs_verbose("mw wait %dms and got %d msgs %d(%"PRId64"-%"PRId64")ms", 
+                mw_sleep, count, 
+                (count > 0? msgs.msgs[count - 1]->timestamp - msgs.msgs[0]->timestamp : 0),
+                (count > 0? msgs.msgs[0]->timestamp : 0), 
+                (count > 0? msgs.msgs[count - 1]->timestamp : 0));
+        }
+        
+        if (count <= 0) {
+#ifndef SRS_PERF_QUEUE_COND_WAIT
+            srs_info("mw sleep %dms for no msg", mw_sleep);
+            st_usleep(mw_sleep * 1000);
+#else
+            srs_verbose("mw wait %dms and got nothing.", mw_sleep);
+#endif
+            // ignore when nothing got.
+            continue;
+        }
+        srs_info("got %d msgs, min=%d, mw=%d", count, SRS_PERF_MW_MIN_MSGS, mw_sleep);
+        
+        // only when user specifies the duration, 
+        // we start to collect the durations for each message.
+        if (user_specified_duration_to_stop) {
+            for (int i = 0; i < count; i++) {
+                SrsSharedPtrMessage* msg = msgs.msgs[i];
+                
                 // foreach msg, collect the duration.
                 // @remark: never use msg when sent it, for the protocol sdk will free it.
-                if (starttime < 0 || starttime > msg->header.timestamp) {
-                    starttime = msg->header.timestamp;
+                if (starttime < 0 || starttime > msg->timestamp) {
+                    starttime = msg->timestamp;
                 }
-                duration += msg->header.timestamp - starttime;
-                starttime = msg->header.timestamp;
+                duration += msg->timestamp - starttime;
+                starttime = msg->timestamp;
             }
-            
-            // no need to assert msg, for the rtmp will assert it.
-            if ((ret = rtmp->send_and_free_message(msg, res->stream_id)) != ERROR_SUCCESS) {
-                srs_error("send message to client failed. ret=%d", ret);
-                return ret;
+        }
+        
+        // sendout messages, all messages are freed by send_and_free_messages().
+        // no need to assert msg, for the rtmp will assert it.
+        if (count > 0 && (ret = rtmp->send_and_free_messages(msgs.msgs, count, res->stream_id)) != ERROR_SUCCESS) {
+            if (!srs_is_client_gracefully_close(ret)) {
+                srs_error("send messages to client failed. ret=%d", ret);
             }
+            return ret;
         }
         
         // if duration specified, and exceed it, stop play live.
@@ -612,9 +743,6 @@ int SrsRtmpConn::playing(SrsSource* source)
                 return ret;
             }
         }
-        
-        // switch to other threads, to anti dead loop.
-        st_usleep(0);
     }
     
     return ret;
@@ -631,8 +759,16 @@ int SrsRtmpConn::fmle_publishing(SrsSource* source)
         return ret;
     }
 
+    // use isolate thread to recv,
+    // @see: https://github.com/winlinvip/simple-rtmp-server/issues/237
+    SrsPublishRecvThread trd(rtmp, req, 
+        st_netfd_fileno(stfd), 0, this, source, true, vhost_is_edge);
+
     srs_info("start to publish stream %s success", req->stream.c_str());
-    ret = do_fmle_publishing(source);
+    ret = do_publishing(source, &trd);
+
+    // stop isolate recv thread
+    trd.stop();
 
     // when edge, notice edge to change state.
     // when origin, notice all service to unpublish.
@@ -643,85 +779,6 @@ int SrsRtmpConn::fmle_publishing(SrsSource* source)
     }
 
     http_hooks_on_unpublish();
-    
-    return ret;
-}
-
-int SrsRtmpConn::do_fmle_publishing(SrsSource* source)
-{
-    int ret = ERROR_SUCCESS;
-    
-    if ((ret = refer->check(req->pageUrl, _srs_config->get_refer_publish(req->vhost))) != ERROR_SUCCESS) {
-        srs_error("fmle check publish_refer failed. ret=%d", ret);
-        return ret;
-    }
-    srs_verbose("fmle check publish_refer success.");
-    
-    SrsPithyPrint pithy_print(SRS_CONSTS_STAGE_PUBLISH_USER);
-    
-    bool vhost_is_edge = _srs_config->get_vhost_is_edge(req->vhost);
-    
-    // when edge, ignore the publish event, directly proxy it.
-    if (!vhost_is_edge) {
-        // notify the hls to prepare when publish start.
-        if ((ret = source->on_publish()) != ERROR_SUCCESS) {
-            srs_error("fmle hls on_publish failed. ret=%d", ret);
-            return ret;
-        }
-        srs_verbose("fmle hls on_publish success.");
-    }
-    
-    while (true) {
-        // switch to other st-threads.
-        st_usleep(0);
-        
-        SrsMessage* msg = NULL;
-        if ((ret = rtmp->recv_message(&msg)) != ERROR_SUCCESS) {
-            srs_error("fmle recv identify client message failed. ret=%d", ret);
-            return ret;
-        }
-
-        SrsAutoFree(SrsMessage, msg);
-        
-        pithy_print.elapse();
-
-        // reportable
-        if (pithy_print.can_print()) {
-            kbps->sample();
-            srs_trace("<- "SRS_CONSTS_LOG_CLIENT_PUBLISH
-                " time=%"PRId64", okbps=%d,%d,%d, ikbps=%d,%d,%d", pithy_print.age(), 
-                kbps->get_send_kbps(), kbps->get_send_kbps_30s(), kbps->get_send_kbps_5m(),
-                kbps->get_recv_kbps(), kbps->get_recv_kbps_30s(), kbps->get_recv_kbps_5m());
-        }
-    
-        // process UnPublish event.
-        if (msg->header.is_amf0_command() || msg->header.is_amf3_command()) {
-            SrsPacket* pkt = NULL;
-            if ((ret = rtmp->decode_message(msg, &pkt)) != ERROR_SUCCESS) {
-                srs_error("fmle decode unpublish message failed. ret=%d", ret);
-                return ret;
-            }
-            
-            SrsAutoFree(SrsPacket, pkt);
-        
-            if (dynamic_cast<SrsFMLEStartPacket*>(pkt)) {
-                SrsFMLEStartPacket* unpublish = dynamic_cast<SrsFMLEStartPacket*>(pkt);
-                if ((ret = rtmp->fmle_unpublish(res->stream_id, unpublish->transaction_id)) != ERROR_SUCCESS) {
-                    return ret;
-                }
-                return ERROR_CONTROL_REPUBLISH;
-            }
-            
-            srs_trace("fmle ignore AMF0/AMF3 command message.");
-            continue;
-        }
-
-        // video, audio, data message
-        if ((ret = process_publish_message(source, msg, vhost_is_edge)) != ERROR_SUCCESS) {
-            srs_error("fmle process publish message failed. ret=%d", ret);
-            return ret;
-        }
-    }
     
     return ret;
 }
@@ -729,16 +786,24 @@ int SrsRtmpConn::do_fmle_publishing(SrsSource* source)
 int SrsRtmpConn::flash_publishing(SrsSource* source)
 {
     int ret = ERROR_SUCCESS;
-    
+
     bool vhost_is_edge = _srs_config->get_vhost_is_edge(req->vhost);
-            
+
     if ((ret = http_hooks_on_publish()) != ERROR_SUCCESS) {
         srs_error("http hook on_publish failed. ret=%d", ret);
         return ret;
     }
-    
-    srs_info("flash start to publish stream %s success", req->stream.c_str());
-    ret = do_flash_publishing(source);
+
+    // use isolate thread to recv,
+    // @see: https://github.com/winlinvip/simple-rtmp-server/issues/237
+    SrsPublishRecvThread trd(rtmp, req, 
+        st_netfd_fileno(stfd), 0, this, source, true, vhost_is_edge);
+
+    srs_info("start to publish stream %s success", req->stream.c_str());
+    ret = do_publishing(source, &trd);
+
+    // stop isolate recv thread
+    trd.stop();
 
     // when edge, notice edge to change state.
     // when origin, notice all service to unpublish.
@@ -747,89 +812,128 @@ int SrsRtmpConn::flash_publishing(SrsSource* source)
     } else {
         source->on_unpublish();
     }
-    
+
     http_hooks_on_unpublish();
-    
+
     return ret;
 }
 
-int SrsRtmpConn::do_flash_publishing(SrsSource* source)
+int SrsRtmpConn::do_publishing(SrsSource* source, SrsPublishRecvThread* trd)
 {
     int ret = ERROR_SUCCESS;
-    
+
     if ((ret = refer->check(req->pageUrl, _srs_config->get_refer_publish(req->vhost))) != ERROR_SUCCESS) {
-        srs_error("flash check publish_refer failed. ret=%d", ret);
+        srs_error("check publish_refer failed. ret=%d", ret);
         return ret;
     }
-    srs_verbose("flash check publish_refer success.");
-    
+    srs_verbose("check publish_refer success.");
+
     SrsPithyPrint pithy_print(SRS_CONSTS_STAGE_PUBLISH_USER);
-    
+
     bool vhost_is_edge = _srs_config->get_vhost_is_edge(req->vhost);
-    
+
     // when edge, ignore the publish event, directly proxy it.
     if (!vhost_is_edge) {
         // notify the hls to prepare when publish start.
         if ((ret = source->on_publish()) != ERROR_SUCCESS) {
-            srs_error("flash hls on_publish failed. ret=%d", ret);
+            srs_error("hls on_publish failed. ret=%d", ret);
             return ret;
         }
-        srs_verbose("flash hls on_publish success.");
+        srs_verbose("hls on_publish success.");
     }
-    
+
+    // start isolate recv thread.
+    if ((ret = trd->start()) != ERROR_SUCCESS) {
+        srs_error("start isolate recv thread failed. ret=%d", ret);
+        return ret;
+    }
+
+    int64_t nb_msgs = 0;
     while (true) {
-        // switch to other st-threads.
-        st_usleep(0);
-        
-        SrsMessage* msg = NULL;
-        if ((ret = rtmp->recv_message(&msg)) != ERROR_SUCCESS) {
+        // cond wait for error.
+        trd->wait(SRS_CONSTS_RTMP_RECV_TIMEOUT_US / 1000);
+
+        // check the thread error code.
+        if ((ret = trd->error_code()) != ERROR_SUCCESS) {
             if (!srs_is_client_gracefully_close(ret)) {
-                srs_error("flash recv identify client message failed. ret=%d", ret);
+                srs_error("recv thread failed. ret=%d", ret);
             }
             return ret;
         }
 
-        SrsAutoFree(SrsMessage, msg);
-        
+        // when not got any messages, timeout.
+        if (trd->nb_msgs() <= nb_msgs) {
+            ret = ERROR_SOCKET_TIMEOUT;
+            srs_warn("publish timeout %"PRId64"us, nb_msgs=%"PRId64", ret=%d",
+                     SRS_CONSTS_RTMP_RECV_TIMEOUT_US, nb_msgs, ret);
+            break;
+        }
+        nb_msgs = trd->nb_msgs();
+
         pithy_print.elapse();
 
         // reportable
         if (pithy_print.can_print()) {
             kbps->sample();
-            srs_trace("<- "SRS_CONSTS_LOG_WEB_PUBLISH
-                " time=%"PRId64", okbps=%d,%d,%d, ikbps=%d,%d,%d", 
-                pithy_print.age(),
+            bool mr = _srs_config->get_mr_enabled(req->vhost);
+            int mr_sleep = _srs_config->get_mr_sleep_ms(req->vhost);
+            srs_trace("<- "SRS_CONSTS_LOG_CLIENT_PUBLISH
+                " time=%"PRId64", okbps=%d,%d,%d, ikbps=%d,%d,%d, mr=%d/%d", pithy_print.age(),
                 kbps->get_send_kbps(), kbps->get_send_kbps_30s(), kbps->get_send_kbps_5m(),
-                kbps->get_recv_kbps(), kbps->get_recv_kbps_30s(), kbps->get_recv_kbps_5m());
+                kbps->get_recv_kbps(), kbps->get_recv_kbps_30s(), kbps->get_recv_kbps_5m(),
+                mr, mr_sleep
+            );
         }
+    }
+
+    return ret;
+}
+
+int SrsRtmpConn::handle_publish_message(SrsSource* source, SrsCommonMessage* msg, bool is_fmle, bool vhost_is_edge)
+{
+    int ret = ERROR_SUCCESS;
     
-        // process UnPublish event.
-        if (msg->header.is_amf0_command() || msg->header.is_amf3_command()) {
-            SrsPacket* pkt = NULL;
-            if ((ret = rtmp->decode_message(msg, &pkt)) != ERROR_SUCCESS) {
-                srs_error("flash decode unpublish message failed. ret=%d", ret);
-                return ret;
-            }
-            
-            SrsAutoFree(SrsPacket, pkt);
-            
+    // process publish event.
+    if (msg->header.is_amf0_command() || msg->header.is_amf3_command()) {
+        SrsPacket* pkt = NULL;
+        if ((ret = rtmp->decode_message(msg, &pkt)) != ERROR_SUCCESS) {
+            srs_error("fmle decode unpublish message failed. ret=%d", ret);
+            return ret;
+        }
+
+        SrsAutoFree(SrsPacket, pkt);
+
+        // for flash, any packet is republish.
+        if (!is_fmle) {
             // flash unpublish.
             // TODO: maybe need to support republish.
             srs_trace("flash flash publish finished.");
             return ERROR_CONTROL_REPUBLISH;
         }
 
-        // video, audio, data message
-        if ((ret = process_publish_message(source, msg, vhost_is_edge)) != ERROR_SUCCESS) {
-            srs_error("flash process publish message failed. ret=%d", ret);
-            return ret;
+        // for fmle, drop others except the fmle start packet.
+        if (dynamic_cast<SrsFMLEStartPacket*>(pkt)) {
+            SrsFMLEStartPacket* unpublish = dynamic_cast<SrsFMLEStartPacket*>(pkt);
+            if ((ret = rtmp->fmle_unpublish(res->stream_id, unpublish->transaction_id)) != ERROR_SUCCESS) {
+                return ret;
+            }
+            return ERROR_CONTROL_REPUBLISH;
         }
+
+        srs_trace("fmle ignore AMF0/AMF3 command message.");
+        return ret;
+    }
+
+    // video, audio, data message
+    if ((ret = process_publish_message(source, msg, vhost_is_edge)) != ERROR_SUCCESS) {
+        srs_error("fmle process publish message failed. ret=%d", ret);
+        return ret;
     }
     
     return ret;
 }
 
-int SrsRtmpConn::process_publish_message(SrsSource* source, SrsMessage* msg, bool vhost_is_edge)
+int SrsRtmpConn::process_publish_message(SrsSource* source, SrsCommonMessage* msg, bool vhost_is_edge)
 {
     int ret = ERROR_SUCCESS;
     
@@ -894,7 +998,7 @@ int SrsRtmpConn::process_publish_message(SrsSource* source, SrsMessage* msg, boo
     return ret;
 }
 
-int SrsRtmpConn::process_play_control_msg(SrsConsumer* consumer, SrsMessage* msg)
+int SrsRtmpConn::process_play_control_msg(SrsConsumer* consumer, SrsCommonMessage* msg)
 {
     int ret = ERROR_SUCCESS;
     
@@ -902,7 +1006,7 @@ int SrsRtmpConn::process_play_control_msg(SrsConsumer* consumer, SrsMessage* msg
         srs_verbose("ignore all empty message.");
         return ret;
     }
-    SrsAutoFree(SrsMessage, msg);
+    SrsAutoFree(SrsCommonMessage, msg);
     
     if (!msg->header.is_amf0_command() && !msg->header.is_amf3_command()) {
         srs_info("ignore all message except amf0/amf3 command.");
@@ -933,12 +1037,16 @@ int SrsRtmpConn::process_play_control_msg(SrsConsumer* consumer, SrsMessage* msg
     // TODO: FIXME: response in right way, or forward in edge mode.
     SrsCallPacket* call = dynamic_cast<SrsCallPacket*>(pkt);
     if (call) {
-        SrsCallResPacket* res = new SrsCallResPacket(call->transaction_id);
-        res->command_object = SrsAmf0Any::null();
-        res->response = SrsAmf0Any::null();
-        if ((ret = rtmp->send_and_free_packet(res, 0)) != ERROR_SUCCESS) {
-            srs_warn("response call failed. ret=%d", ret);
-            return ret;
+        // only response it when transaction id not zero,
+        // for the zero means donot need response.
+        if (call->transaction_id > 0) {
+            SrsCallResPacket* res = new SrsCallResPacket(call->transaction_id);
+            res->command_object = SrsAmf0Any::null();
+            res->response = SrsAmf0Any::null();
+            if ((ret = rtmp->send_and_free_packet(res, 0)) != ERROR_SUCCESS) {
+                srs_warn("response call failed. ret=%d", ret);
+                return ret;
+            }
         }
         return ret;
     }
@@ -962,6 +1070,52 @@ int SrsRtmpConn::process_play_control_msg(SrsConsumer* consumer, SrsMessage* msg
     srs_info("process pause success, is_pause=%d, time=%d.", pause->is_pause, pause->time_ms);
     
     return ret;
+}
+
+void SrsRtmpConn::change_mw_sleep(int sleep_ms)
+{
+    if (!mw_enabled) {
+        return;
+    }
+    
+    // get the sock buffer size.
+    int fd = st_netfd_fileno(stfd);
+    int onb_sbuf = 0;
+    socklen_t sock_buf_size = sizeof(int);
+    getsockopt(fd, SOL_SOCKET, SO_SNDBUF, &onb_sbuf, &sock_buf_size);
+    
+#ifdef SRS_PERF_MW_SO_SNDBUF    
+    // the bytes:
+    //      4KB=4096, 8KB=8192, 16KB=16384, 32KB=32768, 64KB=65536,
+    //      128KB=131072, 256KB=262144, 512KB=524288
+    // the buffer should set to sleep*kbps/8,
+    // for example, your system delivery stream in 1000kbps,
+    // sleep 800ms for small bytes, the buffer should set to:
+    //      800*1000/8=100000B(about 128KB).
+    // other examples:
+    //      2000*3000/8=750000B(about 732KB).
+    //      2000*5000/8=1250000B(about 1220KB).
+    int kbps = 5000;
+    int socket_buffer_size = sleep_ms * kbps / 8;
+
+    // socket send buffer, system will double it.
+    int nb_sbuf = socket_buffer_size / 2;
+    
+    // set the socket send buffer when required larger buffer
+    if (setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &nb_sbuf, sock_buf_size) < 0) {
+        srs_warn("set sock SO_SENDBUF=%d failed.", nb_sbuf);
+    }
+    getsockopt(fd, SOL_SOCKET, SO_SNDBUF, &nb_sbuf, &sock_buf_size);
+    
+    srs_trace("mw changed sleep %d=>%d, max_msgs=%d, esbuf=%d, sbuf %d=>%d, realtime=%d", 
+        mw_sleep, sleep_ms, SRS_PERF_MW_MSGS, socket_buffer_size,
+        onb_sbuf, nb_sbuf, realtime);
+#else
+    srs_trace("mw changed sleep %d=>%d, max_msgs=%d, sbuf %d, realtime=%d", 
+        mw_sleep, sleep_ms, SRS_PERF_MW_MSGS, onb_sbuf, realtime);
+#endif
+        
+    mw_sleep = sleep_ms;
 }
 
 int SrsRtmpConn::check_edge_token_traverse_auth()

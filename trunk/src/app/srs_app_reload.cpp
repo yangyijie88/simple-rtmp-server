@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -95,6 +95,11 @@ int ISrsReloadHandler::on_reload_vhost_http_updated()
     return ERROR_SUCCESS;
 }
 
+int ISrsReloadHandler::on_reload_vhost_http_flv_updated()
+{
+    return ERROR_SUCCESS;
+}
+
 int ISrsReloadHandler::on_reload_vhost_added(string /*vhost*/)
 {
     return ERROR_SUCCESS;
@@ -136,6 +141,26 @@ int ISrsReloadHandler::on_reload_vhost_hls(string /*vhost*/)
 }
 
 int ISrsReloadHandler::on_reload_vhost_dvr(string /*vhost*/)
+{
+    return ERROR_SUCCESS;
+}
+
+int ISrsReloadHandler::on_reload_vhost_mr(string /*vhost*/)
+{
+    return ERROR_SUCCESS;
+}
+
+int ISrsReloadHandler::on_reload_vhost_mw(string /*vhost*/)
+{
+    return ERROR_SUCCESS;
+}
+
+int ISrsReloadHandler::on_reload_vhost_realtime(string /*vhost*/)
+{
+    return ERROR_SUCCESS;
+}
+
+int ISrsReloadHandler::on_reload_vhost_chunk_size(string /*vhost*/)
 {
     return ERROR_SUCCESS;
 }

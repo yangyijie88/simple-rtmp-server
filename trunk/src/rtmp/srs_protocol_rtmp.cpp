@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -31,7 +31,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <srs_kernel_stream.hpp>
 #include <srs_kernel_utility.hpp>
 
+// for srs-librtmp, @see https://github.com/winlinvip/simple-rtmp-server/issues/213
+#ifndef _WIN32
 #include <unistd.h>
+#endif
+
 using namespace std;
 
 /**
@@ -87,6 +91,7 @@ SrsRequest* SrsRequest::copy()
 {
     SrsRequest* cp = new SrsRequest();
     
+    cp->ip = ip;
     cp->app = app;
     cp->objectEncoding = objectEncoding;
     cp->pageUrl = pageUrl;
@@ -260,7 +265,7 @@ int SrsHandshakeBytes::create_c0c1()
         return ret;
     }
     stream.write_1bytes(0x03);
-    stream.write_4bytes(::time(NULL));
+    stream.write_4bytes((int32_t)::time(NULL));
     stream.write_4bytes(0x00);
     
     return ret;
@@ -283,8 +288,8 @@ int SrsHandshakeBytes::create_s0s1s2(const char* c1)
         return ret;
     }
     stream.write_1bytes(0x03);
-    stream.write_4bytes(::time(NULL));
-    // s2 time2 copy from c1
+    stream.write_4bytes((int32_t)::time(NULL));
+    // s1 time2 copy from c1
     if (c0c1) {
         stream.write_bytes(c0c1 + 1, 4);
     }
@@ -314,7 +319,7 @@ int SrsHandshakeBytes::create_c2()
     if ((ret = stream.initialize(c2, 8)) != ERROR_SUCCESS) {
         return ret;
     }
-    stream.write_4bytes(::time(NULL));
+    stream.write_4bytes((int32_t)::time(NULL));
     // c2 time2 copy from s1
     if (s0s1s2) {
         stream.write_bytes(s0s1s2 + 1, 4);
@@ -356,19 +361,24 @@ int64_t SrsRtmpClient::get_send_bytes()
     return protocol->get_send_bytes();
 }
 
-int SrsRtmpClient::recv_message(SrsMessage** pmsg)
+int SrsRtmpClient::recv_message(SrsCommonMessage** pmsg)
 {
     return protocol->recv_message(pmsg);
 }
 
-int SrsRtmpClient::decode_message(SrsMessage* msg, SrsPacket** ppacket)
+int SrsRtmpClient::decode_message(SrsCommonMessage* msg, SrsPacket** ppacket)
 {
     return protocol->decode_message(msg, ppacket);
 }
 
-int SrsRtmpClient::send_and_free_message(SrsMessage* msg, int stream_id)
+int SrsRtmpClient::send_and_free_message(SrsSharedPtrMessage* msg, int stream_id)
 {
     return protocol->send_and_free_message(msg, stream_id);
+}
+
+int SrsRtmpClient::send_and_free_messages(SrsSharedPtrMessage** msgs, int nb_msgs, int stream_id)
+{
+    return protocol->send_and_free_messages(msgs, nb_msgs, stream_id);
 }
 
 int SrsRtmpClient::send_and_free_packet(SrsPacket* packet, int stream_id)
@@ -442,7 +452,7 @@ int SrsRtmpClient::connect_app(string app, string tc_url,
     int srs_pid = 0;
     
     return connect_app2(app, tc_url, req, debug_srs_upnode,
-        srs_server_ip, srs_server, srs_primary, srs_authors, 
+        srs_server_ip, srs_server, srs_primary, srs_authors,
         srs_version, srs_id, srs_pid);
 }
 
@@ -459,13 +469,17 @@ int SrsRtmpClient::connect_app2(
         SrsConnectAppPacket* pkt = new SrsConnectAppPacket();
         
         pkt->command_object->set("app", SrsAmf0Any::str(app.c_str()));
-        pkt->command_object->set("flashVer", SrsAmf0Any::str("WIN 12,0,0,41"));
+        pkt->command_object->set("flashVer", SrsAmf0Any::str("WIN 15,0,0,239"));
         if (req) {
             pkt->command_object->set("swfUrl", SrsAmf0Any::str(req->swfUrl.c_str()));
         } else {
             pkt->command_object->set("swfUrl", SrsAmf0Any::str());
         }
-        pkt->command_object->set("tcUrl", SrsAmf0Any::str(tc_url.c_str()));
+        if (req && req->tcUrl != "") {
+            pkt->command_object->set("tcUrl", SrsAmf0Any::str(req->tcUrl.c_str()));
+        } else {
+            pkt->command_object->set("tcUrl", SrsAmf0Any::str(tc_url.c_str()));
+        }
         pkt->command_object->set("fpad", SrsAmf0Any::boolean(false));
         pkt->command_object->set("capabilities", SrsAmf0Any::number(239));
         pkt->command_object->set("audioCodecs", SrsAmf0Any::number(3575));
@@ -500,13 +514,13 @@ int SrsRtmpClient::connect_app2(
     }
     
     // expect connect _result
-    SrsMessage* msg = NULL;
+    SrsCommonMessage* msg = NULL;
     SrsConnectAppResPacket* pkt = NULL;
     if ((ret = expect_message<SrsConnectAppResPacket>(&msg, &pkt)) != ERROR_SUCCESS) {
         srs_error("expect connect app response message failed. ret=%d", ret);
         return ret;
     }
-    SrsAutoFree(SrsMessage, msg);
+    SrsAutoFree(SrsCommonMessage, msg);
     SrsAutoFree(SrsConnectAppResPacket, pkt);
     
     // server info
@@ -557,13 +571,13 @@ int SrsRtmpClient::create_stream(int& stream_id)
 
     // CreateStream _result.
     if (true) {
-        SrsMessage* msg = NULL;
+        SrsCommonMessage* msg = NULL;
         SrsCreateStreamResPacket* pkt = NULL;
         if ((ret = expect_message<SrsCreateStreamResPacket>(&msg, &pkt)) != ERROR_SUCCESS) {
             srs_error("expect create stream response message failed. ret=%d", ret);
             return ret;
         }
-        SrsAutoFree(SrsMessage, msg);
+        SrsAutoFree(SrsCommonMessage, msg);
         SrsAutoFree(SrsCreateStreamResPacket, pkt);
         srs_info("get create stream response message");
 
@@ -691,13 +705,13 @@ int SrsRtmpClient::fmle_publish(string stream, int& stream_id)
     
     // expect result of CreateStream
     if (true) {
-        SrsMessage* msg = NULL;
+        SrsCommonMessage* msg = NULL;
         SrsCreateStreamResPacket* pkt = NULL;
         if ((ret = expect_message<SrsCreateStreamResPacket>(&msg, &pkt)) != ERROR_SUCCESS) {
             srs_error("expect create stream response message failed. ret=%d", ret);
             return ret;
         }
-        SrsAutoFree(SrsMessage, msg);
+        SrsAutoFree(SrsCommonMessage, msg);
         SrsAutoFree(SrsCreateStreamResPacket, pkt);
         srs_info("get create stream response message");
 
@@ -731,6 +745,23 @@ SrsRtmpServer::~SrsRtmpServer()
     srs_freep(hs_bytes);
 }
 
+void SrsRtmpServer::set_auto_response(bool v)
+{
+    protocol->set_auto_response(v);
+}
+
+#ifdef SRS_PERF_MERGED_READ
+void SrsRtmpServer::set_merge_read(bool v, IMergeReadHandler* handler)
+{
+    protocol->set_merge_read(v, handler);
+}
+
+void SrsRtmpServer::set_recv_buffer(int buffer_size)
+{
+    protocol->set_recv_buffer(buffer_size);
+}
+#endif
+
 void SrsRtmpServer::set_recv_timeout(int64_t timeout_us)
 {
     protocol->set_recv_timeout(timeout_us);
@@ -761,19 +792,24 @@ int64_t SrsRtmpServer::get_send_bytes()
     return protocol->get_send_bytes();
 }
 
-int SrsRtmpServer::recv_message(SrsMessage** pmsg)
+int SrsRtmpServer::recv_message(SrsCommonMessage** pmsg)
 {
     return protocol->recv_message(pmsg);
 }
 
-int SrsRtmpServer::decode_message(SrsMessage* msg, SrsPacket** ppacket)
+int SrsRtmpServer::decode_message(SrsCommonMessage* msg, SrsPacket** ppacket)
 {
     return protocol->decode_message(msg, ppacket);
 }
 
-int SrsRtmpServer::send_and_free_message(SrsMessage* msg, int stream_id)
+int SrsRtmpServer::send_and_free_message(SrsSharedPtrMessage* msg, int stream_id)
 {
     return protocol->send_and_free_message(msg, stream_id);
+}
+
+int SrsRtmpServer::send_and_free_messages(SrsSharedPtrMessage** msgs, int nb_msgs, int stream_id)
+{
+    return protocol->send_and_free_messages(msgs, nb_msgs, stream_id);
 }
 
 int SrsRtmpServer::send_and_free_packet(SrsPacket* packet, int stream_id)
@@ -807,13 +843,13 @@ int SrsRtmpServer::connect_app(SrsRequest* req)
 {
     int ret = ERROR_SUCCESS;
     
-    SrsMessage* msg = NULL;
+    SrsCommonMessage* msg = NULL;
     SrsConnectAppPacket* pkt = NULL;
     if ((ret = expect_message<SrsConnectAppPacket>(&msg, &pkt)) != ERROR_SUCCESS) {
         srs_error("expect connect app message failed. ret=%d", ret);
         return ret;
     }
-    SrsAutoFree(SrsMessage, msg);
+    SrsAutoFree(SrsCommonMessage, msg);
     SrsAutoFree(SrsConnectAppPacket, pkt);
     srs_info("get connect app message");
     
@@ -970,7 +1006,7 @@ int SrsRtmpServer::identify_client(int stream_id, SrsRtmpConnType& type, string&
     int ret = ERROR_SUCCESS;
     
     while (true) {
-        SrsMessage* msg = NULL;
+        SrsCommonMessage* msg = NULL;
         if ((ret = protocol->recv_message(&msg)) != ERROR_SUCCESS) {
             if (!srs_is_client_gracefully_close(ret)) {
                 srs_error("recv identify client message failed. ret=%d", ret);
@@ -978,7 +1014,7 @@ int SrsRtmpServer::identify_client(int stream_id, SrsRtmpConnType& type, string&
             return ret;
         }
 
-        SrsAutoFree(SrsMessage, msg);
+        SrsAutoFree(SrsCommonMessage, msg);
         SrsMessageHeader& h = msg->header;
         
         if (h.is_ackledgement() || h.is_set_chunk_size() || h.is_window_ackledgement_size() || h.is_user_control_message()) {
@@ -1092,10 +1128,10 @@ int SrsRtmpServer::start_play(int stream_id)
         pkt->data->set(StatusClientId, SrsAmf0Any::str(RTMP_SIG_CLIENT_ID));
         
         if ((ret = protocol->send_and_free_packet(pkt, stream_id)) != ERROR_SUCCESS) {
-            srs_error("send onStatus(NetStream.Play.Reset) message failed. ret=%d", ret);
+            srs_error("send onStatus(NetStream.Play.Start) message failed. ret=%d", ret);
             return ret;
         }
-        srs_info("send onStatus(NetStream.Play.Reset) message success.");
+        srs_info("send onStatus(NetStream.Play.Start) message success.");
     }
     
     // |RtmpSampleAccess(false, false)
@@ -1202,7 +1238,7 @@ int SrsRtmpServer::start_fmle_publish(int stream_id)
     // FCPublish
     double fc_publish_tid = 0;
     if (true) {
-        SrsMessage* msg = NULL;
+        SrsCommonMessage* msg = NULL;
         SrsFMLEStartPacket* pkt = NULL;
         if ((ret = expect_message<SrsFMLEStartPacket>(&msg, &pkt)) != ERROR_SUCCESS) {
             srs_error("recv FCPublish message failed. ret=%d", ret);
@@ -1210,7 +1246,7 @@ int SrsRtmpServer::start_fmle_publish(int stream_id)
         }
         srs_info("recv FCPublish request message success.");
         
-        SrsAutoFree(SrsMessage, msg);
+        SrsAutoFree(SrsCommonMessage, msg);
         SrsAutoFree(SrsFMLEStartPacket, pkt);
     
         fc_publish_tid = pkt->transaction_id;
@@ -1228,7 +1264,7 @@ int SrsRtmpServer::start_fmle_publish(int stream_id)
     // createStream
     double create_stream_tid = 0;
     if (true) {
-        SrsMessage* msg = NULL;
+        SrsCommonMessage* msg = NULL;
         SrsCreateStreamPacket* pkt = NULL;
         if ((ret = expect_message<SrsCreateStreamPacket>(&msg, &pkt)) != ERROR_SUCCESS) {
             srs_error("recv createStream message failed. ret=%d", ret);
@@ -1236,7 +1272,7 @@ int SrsRtmpServer::start_fmle_publish(int stream_id)
         }
         srs_info("recv createStream request message success.");
         
-        SrsAutoFree(SrsMessage, msg);
+        SrsAutoFree(SrsCommonMessage, msg);
         SrsAutoFree(SrsCreateStreamPacket, pkt);
         
         create_stream_tid = pkt->transaction_id;
@@ -1253,7 +1289,7 @@ int SrsRtmpServer::start_fmle_publish(int stream_id)
     
     // publish
     if (true) {
-        SrsMessage* msg = NULL;
+        SrsCommonMessage* msg = NULL;
         SrsPublishPacket* pkt = NULL;
         if ((ret = expect_message<SrsPublishPacket>(&msg, &pkt)) != ERROR_SUCCESS) {
             srs_error("recv publish message failed. ret=%d", ret);
@@ -1261,7 +1297,7 @@ int SrsRtmpServer::start_fmle_publish(int stream_id)
         }
         srs_info("recv publish request message success.");
         
-        SrsAutoFree(SrsMessage, msg);
+        SrsAutoFree(SrsCommonMessage, msg);
         SrsAutoFree(SrsPublishPacket, pkt);
     }
     // publish response onFCPublish(NetStream.Publish.Start)
@@ -1386,7 +1422,7 @@ int SrsRtmpServer::identify_create_stream_client(SrsCreateStreamPacket* req, int
     }
     
     while (true) {
-        SrsMessage* msg = NULL;
+        SrsCommonMessage* msg = NULL;
         if ((ret = protocol->recv_message(&msg)) != ERROR_SUCCESS) {
             if (!srs_is_client_gracefully_close(ret)) {
                 srs_error("recv identify client message failed. ret=%d", ret);
@@ -1394,7 +1430,7 @@ int SrsRtmpServer::identify_create_stream_client(SrsCreateStreamPacket* req, int
             return ret;
         }
 
-        SrsAutoFree(SrsMessage, msg);
+        SrsAutoFree(SrsCommonMessage, msg);
         SrsMessageHeader& h = msg->header;
         
         if (h.is_ackledgement() || h.is_set_chunk_size() || h.is_window_ackledgement_size() || h.is_user_control_message()) {

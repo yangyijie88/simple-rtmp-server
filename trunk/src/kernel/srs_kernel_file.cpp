@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -23,8 +23,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <srs_kernel_file.hpp>
 
-#include <fcntl.h>
+// for srs-librtmp, @see https://github.com/winlinvip/simple-rtmp-server/issues/213
+#ifndef _WIN32
 #include <unistd.h>
+#endif
+
+#include <fcntl.h>
 #include <sstream>
 using namespace std;
 
@@ -34,6 +38,7 @@ using namespace std;
 SrsFileWriter::SrsFileWriter()
 {
     fd = -1;
+    pcr_packet_count=0;
 }
 
 SrsFileWriter::~SrsFileWriter()
@@ -173,19 +178,19 @@ int64_t SrsFileReader::tellg()
 
 void SrsFileReader::skip(int64_t size)
 {
-    ::lseek(fd, size, SEEK_CUR);
+    ::lseek(fd, (off_t)size, SEEK_CUR);
 }
 
 int64_t SrsFileReader::lseek(int64_t offset)
 {
-    return (int64_t)::lseek(fd, offset, SEEK_SET);
+    return (int64_t)::lseek(fd, (off_t)offset, SEEK_SET);
 }
 
 int64_t SrsFileReader::filesize()
 {
     int64_t cur = tellg();
     int64_t size = (int64_t)::lseek(fd, 0, SEEK_END);
-    ::lseek(fd, cur, SEEK_SET);
+    ::lseek(fd, (off_t)cur, SEEK_SET);
     return size;
 }
 

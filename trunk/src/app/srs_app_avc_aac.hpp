@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -37,25 +37,6 @@ class SrsAmf0Object;
 
 #define __SRS_SRS_MAX_CODEC_SAMPLE 128
 #define __SRS_AAC_SAMPLE_RATE_UNSET 15
-
-/**
-* the FLV/RTMP supported audio sample rate.
-* Sampling rate. The following values are defined:
-* 0 = 5.5 kHz = 5512 Hz
-* 1 = 11 kHz = 11025 Hz
-* 2 = 22 kHz = 22050 Hz
-* 3 = 44 kHz = 44100 Hz
-*/
-enum SrsCodecAudioSampleRate
-{
-    // set to the max value to reserved, for array map.
-    SrsCodecAudioSampleRateReserved                 = 4,
-    
-    SrsCodecAudioSampleRate5512                     = 0,
-    SrsCodecAudioSampleRate11025                    = 1,
-    SrsCodecAudioSampleRate22050                    = 2,
-    SrsCodecAudioSampleRate44100                    = 3,
-};
 
 /**
 * the FLV/RTMP supported audio sample size.
@@ -224,8 +205,9 @@ public:
 public:
     /**
     * audio specified
-    * 1.6.2.1 AudioSpecificConfig, in aac-mp4a-format-ISO_IEC_14496-3+2001.pdf, page 33.
-    * audioObjectType, value defines in 7.1 Profiles, aac-iso-13818-7.pdf, page 40.
+    * audioObjectType, in 1.6.2.1 AudioSpecificConfig, page 33,
+    * 1.5.1.1 Audio object type definition, page 23,
+    *           in aac-mp4a-format-ISO_IEC_14496-3+2001.pdf.
     */
     u_int8_t        aac_profile; 
     /**
@@ -278,6 +260,22 @@ public:
     * demux the h.264 NALUs to sampe units.
     */
     virtual int video_avc_demux(char* data, int size, SrsCodecSample* sample);
+private:
+    /**
+    * when avc packet type is SrsCodecVideoAVCTypeSequenceHeader,
+    * decode the sps and pps.
+    */
+    virtual int avc_demux_sps_pps(SrsStream* stream);
+    /**
+    * demux the avc NALU in "AnnexB" 
+    * from H.264-AVC-ISO_IEC_14496-10.pdf, page 211.
+    */
+    virtual int avc_demux_annexb_format(SrsStream* stream, SrsCodecSample* sample);
+    /**
+    * demux the avc NALU in "ISO Base Media File Format" 
+    * from H.264-AVC-ISO_IEC_14496-15.pdf, page 20
+    */
+    virtual int avc_demux_ibmf_format(SrsStream* stream, SrsCodecSample* sample);
 };
 
 #endif

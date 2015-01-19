@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -39,6 +39,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <srs_app_config.hpp>
 #include <srs_app_log.hpp>
 #include <srs_kernel_utility.hpp>
+#include <srs_core_performance.hpp>
 
 // pre-declare
 int run();
@@ -60,81 +61,107 @@ SrsServer* _srs_server = new SrsServer();
 void show_macro_features()
 {
 #ifdef SRS_AUTO_SSL
-    srs_trace("rtmp handshake: on");
+    srs_trace("check feature rtmp handshake: on");
 #else
-    srs_warn("rtmp handshake: off");
+    srs_warn("check feature rtmp handshake: off");
 #endif
 
 #ifdef SRS_AUTO_HLS
-    srs_trace("hls: on");
+    srs_trace("check feature hls: on");
 #else
-    srs_warn("hls: off");
+    srs_warn("check feature hls: off");
 #endif
 
 #ifdef SRS_AUTO_HTTP_CALLBACK
-    srs_trace("http callback: on");
+    srs_trace("check feature http callback: on");
 #else
-    srs_warn("http callback: off");
+    srs_warn("check feature http callback: off");
 #endif
 
 #ifdef SRS_AUTO_HTTP_API
-    srs_trace("http api: on");
+    srs_trace("check feature http api: on");
 #else
-    srs_warn("http api: off");
+    srs_warn("check feature http api: off");
 #endif
 
 #ifdef SRS_AUTO_HTTP_SERVER
-    srs_trace("http server: on");
+    srs_trace("check feature http server: on");
 #else
-    srs_warn("http server: off");
+    srs_warn("check feature http server: off");
 #endif
 
 #ifdef SRS_AUTO_HTTP_PARSER
-    srs_trace("http parser: on");
+    srs_trace("check feature http parser: on");
 #else
-    srs_warn("http parser: off");
+    srs_warn("check feature http parser: off");
 #endif
 
 #ifdef SRS_AUTO_DVR
-    srs_trace("dvr: on");
+    srs_trace("check feature dvr: on");
 #else
-    srs_warn("dvr: off");
+    srs_warn("check feature dvr: off");
 #endif
 
 #ifdef SRS_AUTO_TRANSCODE
-    srs_trace("transcode: on");
+    srs_trace("check feature transcode: on");
 #else
-    srs_warn("transcode: off");
+    srs_warn("check feature transcode: off");
 #endif
 
 #ifdef SRS_AUTO_INGEST
-    srs_trace("ingest: on");
+    srs_trace("check feature ingest: on");
 #else
-    srs_warn("ingest: off");
+    srs_warn("check feature ingest: off");
 #endif
 
 #ifdef SRS_AUTO_STAT
-    srs_trace("system stat: on");
+    srs_trace("check feature system stat: on");
 #else
-    srs_warn("system stat: off");
+    srs_warn("check feature system stat: off");
 #endif
 
 #ifdef SRS_AUTO_NGINX
-    srs_trace("compile nginx: on");
+    srs_trace("check feature compile nginx: on");
 #else
-    srs_warn("compile nginx: off");
+    srs_warn("check feature compile nginx: off");
 #endif
 
 #ifdef SRS_AUTO_FFMPEG_TOOL
-    srs_trace("compile ffmpeg: on");
+    srs_trace("check feature compile ffmpeg: on");
 #else
-    srs_warn("compile ffmpeg: off");
+    srs_warn("check feature compile ffmpeg: off");
 #endif
+
+#ifdef SRS_PERF_MERGED_READ
+    srs_trace("MR(merged-read): on, @see %s", RTMP_SIG_SRS_ISSUES(241));
+#else
+    srs_warn("MR(merged-read): off, @see %s", RTMP_SIG_SRS_ISSUES(241));
+#endif
+
+    srs_trace("MR(merged-read) default %d sleep %d", SRS_PERF_MR_ENABLED, SRS_PERF_MR_SLEEP);
+    srs_trace("MW(merged-write) default sleep %d", SRS_PERF_MW_SLEEP);
+    srs_trace("read chunk stream cache cid [0, %d)", SRS_PERF_CHUNK_STREAM_CACHE);
+    srs_trace("default gop cache %d, play queue %ds", SRS_PERF_GOP_CACHE, SRS_PERF_PLAY_QUEUE);
+
+    int possible_mr_latency = 0;
+#ifdef SRS_PERF_MERGED_READ
+    possible_mr_latency = SRS_PERF_MR_SLEEP;
+#endif
+    srs_trace("system default latency in ms: mw(0-%d) + mr(0-%d) + play-queue(0-%d)",
+        SRS_PERF_MW_SLEEP, possible_mr_latency, SRS_PERF_PLAY_QUEUE*1000);
 }
 
 void check_macro_features()
 {
+    // for special features.
+#ifndef SRS_PERF_MERGED_READ
+    srs_warn("MR(merged-read) is disabled, hurts read performance. @see %s", RTMP_SIG_SRS_ISSUES(241));
+#endif
+
+    srs_trace("writev limits write %d iovs a time", sysconf(_SC_IOV_MAX));
+
 #if VERSION_MAJOR > 1
+    #warning "using develop SRS, please use release instead."
     srs_warn("SRS %s is develop branch, please use %s instead", RTMP_SIG_SRS_VERSION, RTMP_SIG_SRS_RELEASE);
 #endif
 }
@@ -199,12 +226,6 @@ int main(int argc, char** argv)
     // features
     show_macro_features();
     check_macro_features();
-
-    // for special features.
-#ifdef SRS_AUTO_HTTP_SERVER
-    srs_warn("http server is dev feature, "
-        "@see https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_HTTPServer#feature");
-#endif
     
     /**
     * we do nothing in the constructor of server,

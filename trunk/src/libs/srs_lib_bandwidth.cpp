@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -23,7 +23,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <srs_lib_bandwidth.hpp>
 
+// for srs-librtmp, @see https://github.com/winlinvip/simple-rtmp-server/issues/213
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 #include <sstream>
 using namespace std;
@@ -64,12 +67,12 @@ int _srs_expect_bandwidth_packet(SrsRtmpClient* rtmp, _CheckPacketType pfn)
     int ret = ERROR_SUCCESS;
     
     while (true) {
-        SrsMessage* msg = NULL;
+        SrsCommonMessage* msg = NULL;
         SrsBandwidthPacket* pkt = NULL;
         if ((ret = rtmp->expect_message<SrsBandwidthPacket>(&msg, &pkt)) != ERROR_SUCCESS) {
             return ret;
         }
-        SrsAutoFree(SrsMessage, msg);
+        SrsAutoFree(SrsCommonMessage, msg);
         SrsAutoFree(SrsBandwidthPacket, pkt);
         srs_info("get final message success.");
         
@@ -85,12 +88,12 @@ int _srs_expect_bandwidth_packet2(SrsRtmpClient* rtmp, _CheckPacketType pfn, Srs
     int ret = ERROR_SUCCESS;
     
     while (true) {
-        SrsMessage* msg = NULL;
+        SrsCommonMessage* msg = NULL;
         SrsBandwidthPacket* pkt = NULL;
         if ((ret = rtmp->expect_message<SrsBandwidthPacket>(&msg, &pkt)) != ERROR_SUCCESS) {
             return ret;
         }
-        SrsAutoFree(SrsMessage, msg);
+        SrsAutoFree(SrsCommonMessage, msg);
         srs_info("get final message success.");
         
         if (pfn(pkt)) {
@@ -293,11 +296,6 @@ int SrsBandwidthClient::publish_checking(int duration_ms, int play_kbps)
         return ret;
     }
 
-    // send play data to client
-    int size = 1024; // TODO: FIXME: magic number
-    char random_data[size];
-    memset(random_data, 'A', size);
-
     int data_count = 1;
     srs_update_system_time_ms();
     int64_t starttime = srs_get_system_time_ms();
@@ -321,13 +319,13 @@ int SrsBandwidthClient::publish_checking(int duration_ms, int play_kbps)
         
         // use the play kbps to control the publish
         srs_update_system_time_ms();
-        int elaps = srs_get_system_time_ms() - starttime;
+        int elaps = (int)(srs_get_system_time_ms() - starttime);
         if (elaps > 0) {
-            int current_kbps = _rtmp->get_send_bytes() * 8 / elaps;
+            int current_kbps = (int)(_rtmp->get_send_bytes() * 8 / elaps);
             while (current_kbps > play_kbps) {
                 srs_update_system_time_ms();
-                elaps = srs_get_system_time_ms() - starttime;
-                current_kbps = _rtmp->get_send_bytes() * 8 / elaps;
+                elaps = (int)(srs_get_system_time_ms() - starttime);
+                current_kbps = (int)(_rtmp->get_send_bytes() * 8 / elaps);
                 usleep(100 * 1000); // TODO: FIXME: magic number.
             }
         }

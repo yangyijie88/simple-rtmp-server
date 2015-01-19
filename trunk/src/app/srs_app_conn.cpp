@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -37,7 +37,7 @@ SrsConnection::SrsConnection(SrsServer* srs_server, st_netfd_t client_stfd)
     // so we never use joinable.
     // TODO: FIXME: maybe other thread need to stop it.
     // @see: https://github.com/winlinvip/simple-rtmp-server/issues/78
-    pthread = new SrsThread(this, 0, false);
+    pthread = new SrsThread("conn", this, 0, false);
 }
 
 SrsConnection::~SrsConnection()

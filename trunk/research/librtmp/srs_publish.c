@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -32,54 +32,60 @@ gcc srs_publish.c ../../objs/lib/srs_librtmp.a -g -O0 -lstdc++ -o srs_publish
 
 int main(int argc, char** argv)
 {
-    srs_rtmp_t rtmp;
-    
-    // packet data
-    int type, size;
-    u_int32_t timestamp = 0;
-    char* data;
-    
     printf("publish rtmp stream to server like FMLE/FFMPEG/Encoder\n");
     printf("srs(simple-rtmp-server) client librtmp library.\n");
     printf("version: %d.%d.%d\n", srs_version_major(), srs_version_minor(), srs_version_revision());
+    
+    if (argc <= 1) {
+        printf("Usage: %s <rtmp_url>\n"
+            "   rtmp_url     RTMP stream url to publish\n"
+            "For example:\n"
+            "   %s rtmp://127.0.0.1:1935/live/livestream\n",
+            argv[0], argv[0]);
+        exit(-1);
+    }
+    
     // warn it .
     // @see: https://github.com/winlinvip/simple-rtmp-server/issues/126
-    printf("\033[33m%s\033[0m", 
+    srs_human_trace("\033[33m%s\033[0m", 
         "[warning] it's only a sample to use librtmp. "
         "please never use it to publish and test forward/transcode/edge/HLS whatever. "
-        "you should refer to this tool to use the srs-librtmp to publish the real media stream.");
-    printf("\n");
+        "you should refer to this tool to use the srs-librtmp to publish the real media stream."
+        "read about: https://github.com/winlinvip/simple-rtmp-server/issues/126");
+    srs_human_trace("rtmp url: %s", argv[1]);
+    srs_rtmp_t rtmp = srs_rtmp_create(argv[1]);
     
-    rtmp = srs_rtmp_create("rtmp://127.0.0.1:1935/live/livestream");
-    
-    if (srs_simple_handshake(rtmp) != 0) {
-        printf("simple handshake failed.\n");
+    if (srs_rtmp_handshake(rtmp) != 0) {
+        srs_human_trace("simple handshake failed.");
         goto rtmp_destroy;
     }
-    printf("simple handshake success\n");
+    srs_human_trace("simple handshake success");
     
-    if (srs_connect_app(rtmp) != 0) {
-        printf("connect vhost/app failed.\n");
+    if (srs_rtmp_connect_app(rtmp) != 0) {
+        srs_human_trace("connect vhost/app failed.");
         goto rtmp_destroy;
     }
-    printf("connect vhost/app success\n");
+    srs_human_trace("connect vhost/app success");
     
-    if (srs_publish_stream(rtmp) != 0) {
-        printf("publish stream failed.\n");
+    if (srs_rtmp_publish_stream(rtmp) != 0) {
+        srs_human_trace("publish stream failed.");
         goto rtmp_destroy;
     }
-    printf("publish stream success\n");
+    srs_human_trace("publish stream success");
     
+    u_int32_t timestamp = 0;
     for (;;) {
-        type = SRS_RTMP_TYPE_VIDEO;
-        timestamp += 40;
-        size = 4096;
-        data = (char*)malloc(4096);
+        char type = SRS_RTMP_TYPE_VIDEO;
+        int size = 4096;
+        char* data = (char*)malloc(4096);
         
-        if (srs_write_packet(rtmp, type, timestamp, data, size) != 0) {
+        timestamp += 40;
+        
+        if (srs_rtmp_write_packet(rtmp, type, timestamp, data, size) != 0) {
             goto rtmp_destroy;
         }
-        printf("sent packet: type=%s, time=%d, size=%d\n", srs_type2string(type), timestamp, size);
+        srs_human_trace("sent packet: type=%s, time=%d, size=%d", 
+            srs_human_flv_tag_type2string(type), timestamp, size);
         
         usleep(40 * 1000);
     }

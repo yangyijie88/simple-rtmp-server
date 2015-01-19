@@ -6,7 +6,9 @@ else
     ST_ALL      = objs/srs_flv_parser \
                 objs/srs_flv_injecter objs/srs_publish objs/srs_play \
                 objs/srs_ingest_flv objs/srs_ingest_rtmp objs/srs_detect_rtmp \
-                objs/srs_bandwidth_check
+                objs/srs_bandwidth_check objs/srs_h264_raw_publish \
+                objs/srs_audio_raw_publish objs/srs_aac_raw_publish \
+                objs/srs_rtmp_dump
 endif
 
 .PHONY: default clean help ssl nossl
@@ -23,11 +25,15 @@ help:
 	@echo "     srs_flv_parser          parse flv file, print detail info."
 	@echo "     srs_flv_injecter        inject keyframes information to metadata."
 	@echo "     srs_publish             publish program using srs-librtmp"
+	@echo "     srs_h264_raw_publish    publish raw h.264 stream to SSR by srs-librtmp"
+	@echo "     srs_audio_raw_publish   publish raw audio stream to SSR by srs-librtmp"
+	@echo "     srs_aac_raw_publish     publish raw aac stream to SSR by srs-librtmp"
 	@echo "     srs_play                play program using srs-librtmp"
 	@echo "     srs_ingest_flv          ingest flv file and publish to RTMP server."
 	@echo "     srs_ingest_rtmp         ingest RTMP and publish to RTMP server."
 	@echo "     srs_detect_rtmp         detect RTMP stream info."
 	@echo "     srs_bandwidth_check     bandwidth check/test tool."
+	@echo "     srs_rtmp_dump           dump rtmp stream to flv file."
 	@echo "Remark: about simple/complex handshake, see: http://blog.csdn.net/win_lin/article/details/13006803"
 	@echo "Remark: srs Makefile will auto invoke this by --with/without-ssl, "
 	@echo "     that is, if user specified ssl(by --with-ssl), srs will make this by 'make ssl'"
@@ -45,8 +51,8 @@ SRS_LIBRTMP_I = $(SRS_OBJS)/include/srs_librtmp.h
 SRS_LIBRTMP_L = $(SRS_OBJS)/lib/srs_librtmp.a
 # openssl for complex handshake, built by srs.
 SRS_LIBSSL_L =
-# the research public headers
-SRS_RESEARCH_DEPS = Makefile srs_research_public.h
+# public depends, the Makefile or public headers.
+SRS_RESEARCH_DEPS = Makefile
 
 # for x86/x64 platform
 ifeq ($(GCC), gcc)
@@ -81,6 +87,15 @@ objs/srs_flv_injecter: srs_flv_injecter.c $(SRS_RESEARCH_DEPS) $(SRS_LIBRTMP_I) 
 objs/srs_publish: srs_publish.c $(SRS_RESEARCH_DEPS) $(SRS_LIBRTMP_I) $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L)
 	$(GCC) srs_publish.c $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L) $(EXTRA_CXX_FLAG) -o objs/srs_publish
 
+objs/srs_h264_raw_publish: srs_h264_raw_publish.c $(SRS_RESEARCH_DEPS) $(SRS_LIBRTMP_I) $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L)
+	$(GCC) srs_h264_raw_publish.c $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L) $(EXTRA_CXX_FLAG) -o objs/srs_h264_raw_publish
+
+objs/srs_audio_raw_publish: srs_audio_raw_publish.c $(SRS_RESEARCH_DEPS) $(SRS_LIBRTMP_I) $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L)
+	$(GCC) srs_audio_raw_publish.c $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L) $(EXTRA_CXX_FLAG) -o objs/srs_audio_raw_publish
+
+objs/srs_aac_raw_publish: srs_aac_raw_publish.c $(SRS_RESEARCH_DEPS) $(SRS_LIBRTMP_I) $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L)
+	$(GCC) srs_aac_raw_publish.c $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L) $(EXTRA_CXX_FLAG) -o objs/srs_aac_raw_publish
+
 objs/srs_play: srs_play.c $(SRS_RESEARCH_DEPS) $(SRS_LIBRTMP_I) $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L)
 	$(GCC) srs_play.c $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L) $(EXTRA_CXX_FLAG) -o objs/srs_play
 
@@ -95,3 +110,6 @@ objs/srs_detect_rtmp: srs_detect_rtmp.c $(SRS_RESEARCH_DEPS) $(SRS_LIBRTMP_I) $(
 
 objs/srs_bandwidth_check: srs_bandwidth_check.c $(SRS_RESEARCH_DEPS) $(SRS_LIBRTMP_I) $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L)
 	$(GCC) srs_bandwidth_check.c $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L) $(EXTRA_CXX_FLAG) -o objs/srs_bandwidth_check
+
+objs/srs_rtmp_dump: srs_rtmp_dump.c $(SRS_RESEARCH_DEPS) $(SRS_LIBRTMP_I) $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L)
+	$(GCC) srs_rtmp_dump.c $(SRS_LIBRTMP_L) $(SRS_LIBSSL_L) $(EXTRA_CXX_FLAG) -o objs/srs_rtmp_dump

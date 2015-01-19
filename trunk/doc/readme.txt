@@ -19,6 +19,11 @@ amf3_spec_121207.pdf
 H.264-AVC-ISO_IEC_14496-10.pdf
     avc标准，编码部分。
     
+H.264-AVC-ISO_IEC_14496-10-2012.pdf
+    avc标准，编码部分。
+    上面的标准是2003年的，和下面的15是2010年的对不上。
+    http://www.itu.int/ITU-T/recommendations/rec.aspx?rec=11466
+    
 H.264-AVC-ISO_IEC_14496-15.pdf
     avc标准，封装部分。
     
@@ -57,5 +62,9 @@ http1.1-rfc2616.txt
     http://www.rfc-editor.org/rfc/rfc2616.txt
 arpa-internet-text-messages-rfc822.txt
     http://www.rfc-editor.org/rfc/rfc822.txt
+
+mp3规范：
+mp3.id3v2.3.0.pdf
+    http://id3.org/id3v2.3.0
 
 Winlin

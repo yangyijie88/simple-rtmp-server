@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -28,6 +28,7 @@ using namespace std;
 #include <srs_kernel_consts.hpp>
 #include <srs_kernel_error.hpp>
 #include <srs_app_source.hpp>
+#include <srs_core_performance.hpp>
 
 MockSrsConfigBuffer::MockSrsConfigBuffer(string buf)
 {
@@ -1092,7 +1093,7 @@ VOID TEST(ConfigTest, CheckMacros)
 #ifndef SRS_CONF_DEFAULT_TIME_JITTER
     EXPECT_TRUE(false);
 #endif
-#ifndef SRS_CONF_DEFAULT_QUEUE_LENGTH
+#ifndef SRS_PERF_PLAY_QUEUE
     EXPECT_TRUE(false);
 #endif
 #ifndef SRS_CONF_DEFAULT_PAUSED_LENGTH

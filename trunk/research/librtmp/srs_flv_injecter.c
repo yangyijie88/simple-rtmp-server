@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -26,6 +26,7 @@ gcc srs_flv_injecter.c ../../objs/lib/srs_librtmp.a -g -O0 -lstdc++ -o srs_flv_i
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <sys/types.h>
@@ -33,7 +34,6 @@ gcc srs_flv_injecter.c ../../objs/lib/srs_librtmp.a -g -O0 -lstdc++ -o srs_flv_i
 #include <fcntl.h>
 
 #include "../../objs/include/srs_librtmp.h"
-#include "srs_research_public.h"
 
 #define ERROR_INJECTED 10000
 
@@ -52,6 +52,10 @@ int main(int argc, char** argv)
     // temp variables.
     int tmp_file_size = 0;
     char* tmp_file;
+
+    printf("inject flv file keyframes to metadata.\n");
+    printf("srs(simple-rtmp-server) client librtmp library.\n");
+    printf("version: %d.%d.%d\n", srs_version_major(), srs_version_minor(), srs_version_revision());
     
     if (argc <= 2) {
         printf("inject flv file keyframes to metadata\n"
@@ -59,11 +63,10 @@ int main(int argc, char** argv)
             "   in_flv_file         input flv file to inject.\n"
             "   out_flv_file        the inject output file, can be in_flv_file.\n"
             "For example:\n"
+            "   %s doc/source.200kbps.768x320.flv injected.flv\n"
             "   %s ../../doc/source.200kbps.768x320.flv injected.flv\n",
-            argv[0], argv[0]);
-        ret = 1;
-        exit(ret);
-        return ret;
+            argv[0], argv[0], argv[0]);
+        exit(-1);
     }
     
     in_flv_file = argv[1];
@@ -73,12 +76,9 @@ int main(int argc, char** argv)
     tmp_file = (char*)malloc(tmp_file_size);
     snprintf(tmp_file, tmp_file_size, "%s.tmp", out_flv_file);
     
-    trace("inject flv file keyframes to metadata.");
-    trace("srs(simple-rtmp-server) client librtmp library.");
-    trace("version: %d.%d.%d", srs_version_major(), srs_version_minor(), srs_version_revision());
-    trace("input:  %s", in_flv_file);
-    trace("output:  %s", out_flv_file);
-    trace("tmp_file:  %s", tmp_file);
+    srs_human_trace("input:  %s", in_flv_file);
+    srs_human_trace("output:  %s", out_flv_file);
+    srs_human_trace("tmp_file:  %s", tmp_file);
 
     ret = process(in_flv_file, tmp_file, &ic, &oc);
     
@@ -89,13 +89,13 @@ int main(int argc, char** argv)
         unlink(tmp_file);
         if (ret == ERROR_INJECTED) {
             ret = 0;
-            trace("file already injected.");
+            srs_human_trace("file already injected.");
         } else {
-            trace("error, remove tmp file.");
+            srs_human_trace("error, remove tmp file.");
         }
     } else {
         rename(tmp_file, out_flv_file);
-        trace("completed, rename to %s", out_flv_file);
+        srs_human_trace("completed, rename to %s", out_flv_file);
     }
     
     free(tmp_file);
@@ -123,14 +123,14 @@ int process(const char* in_flv_file, const char* out_flv_file, srs_flv_t* pic, s
     
     if ((ic = srs_flv_open_read(in_flv_file)) == NULL) {
         ret = 2;
-        trace("open input flv file failed. ret=%d", ret);
+        srs_human_trace("open input flv file failed. ret=%d", ret);
         return ret;
     }
     *pic = ic;
     
     if ((oc = srs_flv_open_write(out_flv_file)) == NULL) {
         ret = 2;
-        trace("open output flv file failed. ret=%d", ret);
+        srs_human_trace("open output flv file failed. ret=%d", ret);
         return ret;
     }
     *poc = oc;
@@ -164,13 +164,13 @@ int parse_metadata(char* data, int size, srs_amf0_t* pname, srs_amf0_t* pdata)
     *pname = srs_amf0_parse(data, size, &nparsed);
     
     if (*pname == NULL || nparsed >= size) {
-        trace("invalid amf0 name data.");
+        srs_human_trace("invalid amf0 name data.");
         return -1;
     }
     
     *pdata = srs_amf0_parse(data + nparsed, size - nparsed, &nparsed);
     if (*pdata == NULL || nparsed > size) {
-        trace("invalid amf0 value data");
+        srs_human_trace("invalid amf0 value data");
         return -1;
     }
     
@@ -206,22 +206,22 @@ int build_keyframes(srs_flv_t ic, srs_amf0_t *pname, srs_amf0_t* pdata, srs_amf0
         return ret;
     }
     
-    trace("build keyframe infos from flv");
+    srs_human_trace("build keyframe infos from flv");
     for (;;) {
         offset = srs_flv_tellg(ic);
         
         // tag header
         if ((ret = srs_flv_read_tag_header(ic, &type, &size, &timestamp)) != 0) {
             if (srs_flv_is_eof(ret)) {
-                trace("parse completed.");
+                srs_human_trace("parse completed.");
                 return 0;
             }
-            trace("flv get packet failed. ret=%d", ret);
+            srs_human_trace("flv get packet failed. ret=%d", ret);
             return ret;
         }
         
         if (size <= 0) {
-            trace("invalid size=%d", size);
+            srs_human_trace("invalid size=%d", size);
             return ret;
         }
         
@@ -343,20 +343,20 @@ int do_inject_flv(srs_flv_t ic, srs_flv_t oc, srs_amf0_t amf0_name, srs_amf0_t a
         free(data);
     }
     
-    trace("build keyframe infos from flv");
+    srs_human_trace("build keyframe infos from flv");
     for (;;) {
         // tag header
         if ((ret = srs_flv_read_tag_header(ic, &type, &size, &timestamp)) != 0) {
             if (srs_flv_is_eof(ret)) {
-                trace("parse completed.");
+                srs_human_trace("parse completed.");
                 return 0;
             }
-            trace("flv get packet failed. ret=%d", ret);
+            srs_human_trace("flv get packet failed. ret=%d", ret);
             return ret;
         }
         
         if (size <= 0) {
-            trace("invalid size=%d", size);
+            srs_human_trace("invalid size=%d", size);
             break;
         }
         

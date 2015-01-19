@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -34,7 +34,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <srs_protocol_rtmp.hpp>
 #include <srs_protocol_handshake.hpp>
-#include <srs_kernel_buffer.hpp>
+#include <srs_protocol_buffer.hpp>
 
 #ifdef SRS_AUTO_SSL
 using namespace _srs_internal;
@@ -78,9 +78,9 @@ public:
     int64_t recv_bytes;
     int64_t send_bytes;
     // data source for socket read.
-    SrsBuffer in_buffer;
+    SrsSimpleBuffer in_buffer;
     // data buffer for socket send.
-    SrsBuffer out_buffer;
+    SrsSimpleBuffer out_buffer;
 public:
     MockBufferIO();
     virtual ~MockBufferIO();

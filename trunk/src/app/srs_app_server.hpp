@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -35,10 +35,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <srs_app_st.hpp>
 #include <srs_app_reload.hpp>
 #include <srs_app_thread.hpp>
+#include <srs_app_source.hpp>
 
 class SrsServer;
 class SrsConnection;
-class SrsHttpHandler;
+class SrsGoHttpServeMux;
+class SrsHttpServer;
 class SrsIngester;
 class SrsHttpHeartbeat;
 class SrsKbps;
@@ -112,14 +114,15 @@ private:
 * SRS RTMP server, initialize and listen, 
 * start connection service thread, destroy client.
 */
-class SrsServer : public ISrsReloadHandler
+class SrsServer : virtual public ISrsReloadHandler
+    , virtual public ISrsSourceHandler
 {
 private:
 #ifdef SRS_AUTO_HTTP_API
-    SrsHttpHandler* http_api_handler;
+    SrsGoHttpServeMux* http_api_mux;
 #endif
 #ifdef SRS_AUTO_HTTP_SERVER
-    SrsHttpHandler* http_stream_handler;
+    SrsHttpServer* http_stream_mux;
 #endif
 #ifdef SRS_AUTO_HTTP_PARSER
     SrsHttpHeartbeat* http_heartbeat;
@@ -235,12 +238,15 @@ public:
     virtual int on_reload_pid();
     virtual int on_reload_vhost_added(std::string vhost);
     virtual int on_reload_vhost_removed(std::string vhost);
-    virtual int on_reload_vhost_http_updated();
     virtual int on_reload_http_api_enabled();
     virtual int on_reload_http_api_disabled();
     virtual int on_reload_http_stream_enabled();
     virtual int on_reload_http_stream_disabled();
     virtual int on_reload_http_stream_updated();
+// interface ISrsSourceHandler
+public:
+    virtual int on_publish(SrsSource* s, SrsRequest* r);
+    virtual void on_unpublish(SrsSource* s, SrsRequest* r);
 };
 
 #endif

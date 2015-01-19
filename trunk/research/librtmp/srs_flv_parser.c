@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -25,6 +25,7 @@ gcc srs_ingest_flv.c ../../objs/lib/srs_librtmp.a -g -O0 -lstdc++ -o srs_ingest_
 */
 
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -33,7 +34,6 @@ gcc srs_ingest_flv.c ../../objs/lib/srs_librtmp.a -g -O0 -lstdc++ -o srs_ingest_
 #include <fcntl.h>
 
 #include "../../objs/include/srs_librtmp.h"
-#include "srs_research_public.h"
 
 int parse_flv(srs_flv_t flv);
 int main(int argc, char** argv)
@@ -45,28 +45,27 @@ int main(int argc, char** argv)
     // flv handler
     srs_flv_t flv;
     
+    printf("parse and show flv file detail.\n");
+    printf("srs(simple-rtmp-server) client librtmp library.\n");
+    printf("version: %d.%d.%d\n", srs_version_major(), srs_version_minor(), srs_version_revision());
+    
     if (argc <= 1) {
         printf("parse and show flv file detail\n"
             "Usage: %s in_flv_file\n"
             "   in_flv_file         flv file to parse and show.\n"
             "For example:\n"
+            "   %s doc/source.200kbps.768x320.flv\n"
             "   %s ../../doc/source.200kbps.768x320.flv\n",
-            argv[0], argv[0]);
-        ret = 1;
-        exit(ret);
-        return ret;
+            argv[0], argv[0], argv[0]);
+        exit(-1);
     }
     
     in_flv_file = argv[1];
-    
-    trace("parse and show flv file detail.");
-    trace("srs(simple-rtmp-server) client librtmp library.");
-    trace("version: %d.%d.%d", srs_version_major(), srs_version_minor(), srs_version_revision());
-    trace("input:  %s", in_flv_file);
+    srs_human_trace("input:  %s", in_flv_file);
 
     if ((flv = srs_flv_open_read(in_flv_file)) == NULL) {
         ret = 2;
-        trace("open flv file failed. ret=%d", ret);
+        srs_human_trace("open flv file failed. ret=%d", ret);
         return ret;
     }
     
@@ -125,86 +124,6 @@ int parse_bytes(char* data, int size, char* hbuf, int hsize, char* tbuf, int tsi
     }
 }
 
-#define FLV_HEADER_SIZE 11
-int parse_script_data(u_int32_t timestamp, char* data, int size, int64_t offset)
-{
-    int ret = 0;
-    
-    char hbuf[48];
-    char tbuf[48];
-    
-    int amf0_size = 0;
-    int nparsed = 0;
-    
-    srs_amf0_t amf0_name;
-    char* amf0_name_str = NULL;
-    
-    srs_amf0_t amf0_data;
-    char* amf0_data_str = NULL;
-    
-    // bytes
-    parse_bytes(data, size, hbuf, sizeof(hbuf), tbuf, sizeof(tbuf), 16);
-    
-    // amf0
-    amf0_name = srs_amf0_parse(data, size, &nparsed);
-    if (amf0_name == NULL || nparsed >= size) {
-        trace("invalid amf0 name data.");
-        return -1;
-    }
-    amf0_data = srs_amf0_parse(data + nparsed, size - nparsed, &nparsed);
-    
-    trace("packet type=%s, time=%d, size=%d, data-size=%d, \n"
-        "offset=%d\n[+00, +15] %s\n[-15, EOF] %s\n%s%s", 
-        srs_type2string(SRS_RTMP_TYPE_SCRIPT), timestamp, size + FLV_HEADER_SIZE, size, 
-        (int)offset, hbuf, tbuf, 
-        srs_amf0_human_print(amf0_name, &amf0_name_str, &amf0_size), 
-        srs_amf0_human_print(amf0_data, &amf0_data_str, &amf0_size));
-    
-    srs_amf0_free(amf0_name);
-    srs_amf0_free_bytes(amf0_name_str);
-    
-    srs_amf0_free(amf0_data);
-    srs_amf0_free_bytes(amf0_data_str);
-
-    return ret;
-}
-
-int parse_audio_data(u_int32_t timestamp, char* data, int size, int64_t offset)
-{
-    int ret = 0;
-    
-    char hbuf[48];
-    char tbuf[48];
-    
-    // bytes
-    parse_bytes(data, size, hbuf, sizeof(hbuf), tbuf, sizeof(tbuf), 16);
-    
-    trace("packet type=%s, time=%d, size=%d, data-size=%d, \n"
-        "offset=%d\n[+00, +15] %s\n[-15, EOF] %s\n", 
-        srs_type2string(SRS_RTMP_TYPE_AUDIO), timestamp, size + FLV_HEADER_SIZE, size, 
-        (int)offset, hbuf, tbuf);
-    
-    return ret;
-}
-
-int parse_video_data(u_int32_t timestamp, char* data, int size, int64_t offset)
-{
-    int ret = 0;
-    
-    char hbuf[48];
-    char tbuf[48];
-    
-    // bytes
-    parse_bytes(data, size, hbuf, sizeof(hbuf), tbuf, sizeof(tbuf), 16);
-    
-    trace("packet type=%s, time=%d, size=%d, data-size=%d, \n"
-        "offset=%d\n[+00, +15] %s\n[-15, EOF] %s\n", 
-        srs_type2string(SRS_RTMP_TYPE_VIDEO), timestamp, size + FLV_HEADER_SIZE, size, 
-        (int)offset, hbuf, tbuf);
-        
-    return ret;
-}
-
 int parse_flv(srs_flv_t flv)
 {
     int ret = 0;
@@ -222,46 +141,46 @@ int parse_flv(srs_flv_t flv)
         return ret;
     }
     
-    trace("start parse flv");
+    srs_human_trace("start parse flv");
     for (;;) {
         offset = srs_flv_tellg(flv);
         
         // tag header
         if ((ret = srs_flv_read_tag_header(flv, &type, &size, &timestamp)) != 0) {
             if (srs_flv_is_eof(ret)) {
-                trace("parse completed.");
+                srs_human_trace("parse completed.");
                 return 0;
             }
-            trace("flv get packet failed. ret=%d", ret);
+            srs_human_trace("flv get packet failed. ret=%d", ret);
             return ret;
         }
         
         if (size <= 0) {
-            trace("invalid size=%d", size);
+            srs_human_trace("invalid size=%d", size);
             break;
         }
         
         data = (char*)malloc(size);
-        if ((ret = srs_flv_read_tag_data(flv, data, size)) != 0) {
-            return ret;
-        }
         
-        // data tag
-        if (type == SRS_RTMP_TYPE_AUDIO) {
-            if ((ret = parse_audio_data(timestamp, data, size, offset)) != 0) {
-                return ret;
-            }
-        } else if (type == SRS_RTMP_TYPE_VIDEO) {
-            if ((ret = parse_video_data(timestamp, data, size, offset)) != 0) {
-                return ret;
+        if ((ret = srs_flv_read_tag_data(flv, data, size)) == 0) {
+            if ((ret = srs_human_print_rtmp_packet(type, timestamp, data, size)) == 0) {
+                char hbuf[48]; char tbuf[48];
+                parse_bytes(data, size, hbuf, sizeof(hbuf), tbuf, sizeof(tbuf), 16);
+                srs_human_raw("offset=%d, first and last 16 bytes:\n"
+                    "[+00, +15] %s\n[-15, EOF] %s\n", (int)offset, hbuf, tbuf);
+            } else {
+                srs_human_trace("print packet failed. ret=%d", ret);
             }
         } else {
-            if ((ret = parse_script_data(timestamp, data, size, offset)) != 0) {
-                return ret;
-            }
+            srs_human_trace("read flv failed. ret=%d", ret);
         }
         
         free(data);
+        
+        if (ret != 0) {
+            srs_human_trace("parse failed, ret=%d", ret);
+            return ret;
+        }
     }
     
     return ret;

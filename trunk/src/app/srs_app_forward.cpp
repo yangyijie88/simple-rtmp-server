@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -58,7 +58,7 @@ SrsForwarder::SrsForwarder(SrsSource* _source)
     kbps = new SrsKbps();
     stream_id = 0;
 
-    pthread = new SrsThread(this, SRS_FORWARDER_SLEEP_US, true);
+    pthread = new SrsThread("forward", this, SRS_FORWARDER_SLEEP_US, true);
     queue = new SrsMessageQueue();
     jitter = new SrsRtmpJitter();
     
@@ -156,9 +156,11 @@ void SrsForwarder::on_unpublish()
     kbps->set_io(NULL, NULL);
 }
 
-int SrsForwarder::on_meta_data(SrsSharedPtrMessage* metadata)
+int SrsForwarder::on_meta_data(SrsSharedPtrMessage* __metadata)
 {
     int ret = ERROR_SUCCESS;
+
+    SrsSharedPtrMessage* metadata = __metadata->copy();
     
     if ((ret = jitter->correct(metadata, 0, 0, SrsRtmpJitterAlgorithmFULL)) != ERROR_SUCCESS) {
         srs_freep(metadata);
@@ -172,10 +174,12 @@ int SrsForwarder::on_meta_data(SrsSharedPtrMessage* metadata)
     return ret;
 }
 
-int SrsForwarder::on_audio(SrsSharedPtrMessage* msg)
+int SrsForwarder::on_audio(SrsSharedPtrMessage* __audio)
 {
     int ret = ERROR_SUCCESS;
     
+    SrsSharedPtrMessage* msg = __audio->copy();
+
     if ((ret = jitter->correct(msg, 0, 0, SrsRtmpJitterAlgorithmFULL)) != ERROR_SUCCESS) {
         srs_freep(msg);
         return ret;
@@ -193,9 +197,11 @@ int SrsForwarder::on_audio(SrsSharedPtrMessage* msg)
     return ret;
 }
 
-int SrsForwarder::on_video(SrsSharedPtrMessage* msg)
+int SrsForwarder::on_video(SrsSharedPtrMessage* __video)
 {
     int ret = ERROR_SUCCESS;
+
+    SrsSharedPtrMessage* msg = __video->copy();
     
     if ((ret = jitter->correct(msg, 0, 0, SrsRtmpJitterAlgorithmFULL)) != ERROR_SUCCESS) {
         srs_freep(msg);
@@ -382,7 +388,7 @@ int SrsForwarder::forward()
     
     SrsPithyPrint pithy_print(SRS_CONSTS_STAGE_FORWARDER);
 
-    SrsSharedPtrMessageArray msgs(SYS_MAX_FORWARD_SEND_MSGS);
+    SrsMessageArray msgs(SYS_MAX_FORWARD_SEND_MSGS);
     
     // update sequence header
     // TODO: FIXME: maybe need to zero the sequence header timestamp.
@@ -400,14 +406,11 @@ int SrsForwarder::forward()
     }
     
     while (pthread->can_loop()) {
-        // switch to other st-threads.
-        st_usleep(0);
-
         pithy_print.elapse();
 
         // read from client.
         if (true) {
-            SrsMessage* msg = NULL;
+            SrsCommonMessage* msg = NULL;
             ret = client->recv_message(&msg);
             
             srs_verbose("play loop recv message. ret=%d", ret);
@@ -420,8 +423,9 @@ int SrsForwarder::forward()
         }
         
         // forward all messages.
+        // each msg in msgs.msgs must be free, for the SrsMessageArray never free them.
         int count = 0;
-        if ((ret = queue->dump_packets(msgs.size, msgs.msgs, count)) != ERROR_SUCCESS) {
+        if ((ret = queue->dump_packets(msgs.max, msgs.msgs, count)) != ERROR_SUCCESS) {
             srs_error("get message to forward failed. ret=%d", ret);
             return ret;
         }
@@ -442,19 +446,10 @@ int SrsForwarder::forward()
             continue;
         }
     
-        // all msgs to forward.
-        // @remark, becareful, all msgs must be free explicitly,
-        //      free by send_and_free_message or srs_freep.
-        for (int i = 0; i < count; i++) {
-            SrsSharedPtrMessage* msg = msgs.msgs[i];
-            
-            srs_assert(msg);
-            msgs.msgs[i] = NULL;
-            
-            if ((ret = client->send_and_free_message(msg, stream_id)) != ERROR_SUCCESS) {
-                srs_error("forwarder send message to server failed. ret=%d", ret);
-                return ret;
-            }
+        // sendout messages, all messages are freed by send_and_free_messages().
+        if ((ret = client->send_and_free_messages(msgs.msgs, count, stream_id)) != ERROR_SUCCESS) {
+            srs_error("forwarder messages to server failed. ret=%d", ret);
+            return ret;
         }
     }
     

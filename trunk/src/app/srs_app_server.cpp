@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -48,47 +48,50 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // signal defines.
 #define SIGNAL_RELOAD SIGHUP
 
+// nginx also set to 512
 #define SERVER_LISTEN_BACKLOG 512
 
-// system interval
+// system interval in ms,
 // all resolution times should be times togother,
-// for example, system-time is 3(300ms),
-// then rusage can be 3*x, for instance, 3*10=30(3s),
-// the meminfo canbe 30*x, for instance, 30*2=60(6s)
-#define SRS_SYS_CYCLE_INTERVAL 100
+// for example, system-interval is x=1s(1000ms),
+// then rusage can be 3*x, for instance, 3*1=3s,
+// the meminfo canbe 6*x, for instance, 6*1=6s,
+// for performance refine, @see: https://github.com/winlinvip/simple-rtmp-server/issues/194
+// @remark, recomment to 1000ms.
+#define SRS_SYS_CYCLE_INTERVAL 1000
 
 // update time interval:
 //      SRS_SYS_CYCLE_INTERVAL * SRS_SYS_TIME_RESOLUTION_MS_TIMES
 // @see SYS_TIME_RESOLUTION_US
-#define SRS_SYS_TIME_RESOLUTION_MS_TIMES 3
+#define SRS_SYS_TIME_RESOLUTION_MS_TIMES 1
 
 // update rusage interval:
 //      SRS_SYS_CYCLE_INTERVAL * SRS_SYS_RUSAGE_RESOLUTION_TIMES
-#define SRS_SYS_RUSAGE_RESOLUTION_TIMES 30
+#define SRS_SYS_RUSAGE_RESOLUTION_TIMES 3
 
 // update network devices info interval:
 //      SRS_SYS_CYCLE_INTERVAL * SRS_SYS_NETWORK_RTMP_SERVER_RESOLUTION_TIMES
-#define SRS_SYS_NETWORK_RTMP_SERVER_RESOLUTION_TIMES 30
+#define SRS_SYS_NETWORK_RTMP_SERVER_RESOLUTION_TIMES 3
 
 // update rusage interval:
 //      SRS_SYS_CYCLE_INTERVAL * SRS_SYS_CPU_STAT_RESOLUTION_TIMES
-#define SRS_SYS_CPU_STAT_RESOLUTION_TIMES 30
+#define SRS_SYS_CPU_STAT_RESOLUTION_TIMES 3
 
 // update the disk iops interval:
 //      SRS_SYS_CYCLE_INTERVAL * SRS_SYS_DISK_STAT_RESOLUTION_TIMES
-#define SRS_SYS_DISK_STAT_RESOLUTION_TIMES 60
+#define SRS_SYS_DISK_STAT_RESOLUTION_TIMES 6
 
 // update rusage interval:
 //      SRS_SYS_CYCLE_INTERVAL * SRS_SYS_MEMINFO_RESOLUTION_TIMES
-#define SRS_SYS_MEMINFO_RESOLUTION_TIMES 60
+#define SRS_SYS_MEMINFO_RESOLUTION_TIMES 6
 
 // update platform info interval:
 //      SRS_SYS_CYCLE_INTERVAL * SRS_SYS_PLATFORM_INFO_RESOLUTION_TIMES
-#define SRS_SYS_PLATFORM_INFO_RESOLUTION_TIMES 90
+#define SRS_SYS_PLATFORM_INFO_RESOLUTION_TIMES 9
 
 // update network devices info interval:
 //      SRS_SYS_CYCLE_INTERVAL * SRS_SYS_NETWORK_DEVICE_RESOLUTION_TIMES
-#define SRS_SYS_NETWORK_DEVICE_RESOLUTION_TIMES 90
+#define SRS_SYS_NETWORK_DEVICE_RESOLUTION_TIMES 9
 
 SrsListener::SrsListener(SrsServer* server, SrsListenerType type)
 {
@@ -99,7 +102,7 @@ SrsListener::SrsListener(SrsServer* server, SrsListenerType type)
     _server = server;
     _type = type;
 
-    pthread = new SrsThread(this, 0, true);
+    pthread = new SrsThread("listen", this, 0, true);
 }
 
 SrsListener::~SrsListener()
@@ -127,18 +130,18 @@ int SrsListener::listen(int port)
     
     if ((fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         ret = ERROR_SOCKET_CREATE;
-        srs_error("create linux socket error. ret=%d", ret);
+        srs_error("create linux socket error. port=%d, ret=%d", port, ret);
         return ret;
     }
-    srs_verbose("create linux socket success. fd=%d", fd);
+    srs_verbose("create linux socket success. port=%d, fd=%d", port, fd);
     
     int reuse_socket = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse_socket, sizeof(int)) == -1) {
         ret = ERROR_SOCKET_SETREUSE;
-        srs_error("setsockopt reuse-addr error. ret=%d", ret);
+        srs_error("setsockopt reuse-addr error. port=%d, ret=%d", port, ret);
         return ret;
     }
-    srs_verbose("setsockopt reuse-addr success. fd=%d", fd);
+    srs_verbose("setsockopt reuse-addr success. port=%d, fd=%d", port, fd);
     
     sockaddr_in addr;
     addr.sin_family = AF_INET;
@@ -146,34 +149,34 @@ int SrsListener::listen(int port)
     addr.sin_addr.s_addr = INADDR_ANY;
     if (bind(fd, (const sockaddr*)&addr, sizeof(sockaddr_in)) == -1) {
         ret = ERROR_SOCKET_BIND;
-        srs_error("bind socket error. ret=%d", ret);
+        srs_error("bind socket error. port=%d, ret=%d", port, ret);
         return ret;
     }
-    srs_verbose("bind socket success. fd=%d", fd);
+    srs_verbose("bind socket success. port=%d, fd=%d", port, fd);
     
     if (::listen(fd, SERVER_LISTEN_BACKLOG) == -1) {
         ret = ERROR_SOCKET_LISTEN;
-        srs_error("listen socket error. ret=%d", ret);
+        srs_error("listen socket error. port=%d, ret=%d", port, ret);
         return ret;
     }
-    srs_verbose("listen socket success. fd=%d", fd);
+    srs_verbose("listen socket success. port=%d, fd=%d", port, fd);
     
     if ((stfd = st_netfd_open_socket(fd)) == NULL){
         ret = ERROR_ST_OPEN_SOCKET;
-        srs_error("st_netfd_open_socket open socket failed. ret=%d", ret);
+        srs_error("st_netfd_open_socket open socket failed. port=%d, ret=%d", port, ret);
         return ret;
     }
-    srs_verbose("st open socket success. fd=%d", fd);
+    srs_verbose("st open socket success. port=%d, fd=%d", port, fd);
     
     if ((ret = pthread->start()) != ERROR_SUCCESS) {
-        srs_error("st_thread_create listen thread error. ret=%d", ret);
+        srs_error("st_thread_create listen thread error. port=%d, ret=%d", port, ret);
         return ret;
     }
-    srs_verbose("create st listen thread success.");
+    srs_verbose("create st listen thread success, port=%d", port);
     
     srs_trace("listen thread cid=%d, current_cid=%d, "
-        "listen at port=%d, type=%d, fd=%d started success", 
-        pthread->cid(), _srs_context->get_id(), _port, _type, fd);
+        "listen at port=%d, type=%d, fd=%d started success, port=%d", 
+        pthread->cid(), _srs_context->get_id(), _port, _type, fd, port);
     
     return ret;
 }
@@ -212,7 +215,7 @@ SrsSignalManager::SrsSignalManager(SrsServer* server)
     
     _server = server;
     sig_pipe[0] = sig_pipe[1] = -1;
-    pthread = new SrsThread(this, 0, true);
+    pthread = new SrsThread("signal", this, 0, true);
     signal_read_stfd = NULL;
 }
 
@@ -327,10 +330,10 @@ SrsServer::SrsServer()
     // for some global instance is not ready now,
     // new these objects in initialize instead.
 #ifdef SRS_AUTO_HTTP_API
-    http_api_handler = NULL;
+    http_api_mux = new SrsGoHttpServeMux();
 #endif
 #ifdef SRS_AUTO_HTTP_SERVER
-    http_stream_handler = NULL;
+    http_stream_mux = new SrsHttpServer();
 #endif
 #ifdef SRS_AUTO_HTTP_PARSER
     http_heartbeat = NULL;
@@ -360,11 +363,11 @@ void SrsServer::destroy()
 #endif
     
 #ifdef SRS_AUTO_HTTP_API
-    srs_freep(http_api_handler);
+    srs_freep(http_api_mux);
 #endif
 
 #ifdef SRS_AUTO_HTTP_SERVER
-    srs_freep(http_stream_handler);
+    srs_freep(http_stream_mux);
 #endif
 
 #ifdef SRS_AUTO_HTTP_PARSER
@@ -412,32 +415,69 @@ int SrsServer::initialize()
     kbps->set_io(NULL, NULL);
     
 #ifdef SRS_AUTO_HTTP_API
-    srs_assert(!http_api_handler);
-    http_api_handler = SrsHttpHandler::create_http_api();
-#endif
-#ifdef SRS_AUTO_HTTP_SERVER
-    srs_assert(!http_stream_handler);
-    http_stream_handler = SrsHttpHandler::create_http_stream();
-#endif
-#ifdef SRS_AUTO_HTTP_PARSER
-    srs_assert(!http_heartbeat);
-    http_heartbeat = new SrsHttpHeartbeat();
-#endif
-#ifdef SRS_AUTO_INGEST
-    srs_assert(!ingester);
-    ingester = new SrsIngester();
+    if ((ret = http_api_mux->initialize()) != ERROR_SUCCESS) {
+        return ret;
+    }
 #endif
     
 #ifdef SRS_AUTO_HTTP_API
-    if ((ret = http_api_handler->initialize()) != ERROR_SUCCESS) {
+    srs_assert(http_api_mux);
+    if ((ret = http_api_mux->handle("/", new SrsGoApiRoot())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api", new SrsGoApiApi())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api/v1", new SrsGoApiV1())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api/v1/versions", new SrsGoApiVersion())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api/v1/summaries", new SrsGoApiSummaries())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api/v1/rusages", new SrsGoApiRusages())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api/v1/self_proc_stats", new SrsGoApiSelfProcStats())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api/v1/system_proc_stats", new SrsGoApiSystemProcStats())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api/v1/meminfos", new SrsGoApiMemInfos())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api/v1/authors", new SrsGoApiAuthors())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api/v1/requests", new SrsGoApiRequests())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api/v1/vhosts", new SrsGoApiVhosts())) != ERROR_SUCCESS) {
+        return ret;
+    }
+    if ((ret = http_api_mux->handle("/api/v1/streams", new SrsGoApiStreams())) != ERROR_SUCCESS) {
         return ret;
     }
 #endif
 
 #ifdef SRS_AUTO_HTTP_SERVER
-    if ((ret = http_stream_handler->initialize()) != ERROR_SUCCESS) {
+    srs_assert(http_stream_mux);
+    if ((ret = http_stream_mux->initialize()) != ERROR_SUCCESS) {
         return ret;
     }
+#endif
+
+#ifdef SRS_AUTO_HTTP_PARSER
+    srs_assert(!http_heartbeat);
+    http_heartbeat = new SrsHttpHeartbeat();
+#endif
+
+#ifdef SRS_AUTO_INGEST
+    srs_assert(!ingester);
+    ingester = new SrsIngester();
 #endif
 
     return ret;
@@ -711,7 +751,7 @@ int SrsServer::do_cycle()
                 srs_trace("reload config success.");
             }
             
-            // update the cache time or rusage.
+            // update the cache time
             if ((i % SRS_SYS_TIME_RESOLUTION_MS_TIMES) == 0) {
                 srs_info("update current time cache.");
                 srs_update_system_time_ms();
@@ -893,7 +933,7 @@ int SrsServer::accept_client(SrsListenerType type, st_netfd_t client_stfd)
         conn = new SrsRtmpConn(this, client_stfd);
     } else if (type == SrsListenerHttpApi) {
 #ifdef SRS_AUTO_HTTP_API
-        conn = new SrsHttpApi(this, client_stfd, http_api_handler);
+        conn = new SrsHttpApi(this, client_stfd, http_api_mux);
 #else
         srs_warn("close http client for server not support http-api");
         srs_close_stfd(client_stfd);
@@ -901,7 +941,7 @@ int SrsServer::accept_client(SrsListenerType type, st_netfd_t client_stfd)
 #endif
     } else if (type == SrsListenerHttpStream) {
 #ifdef SRS_AUTO_HTTP_SERVER
-        conn = new SrsHttpConn(this, client_stfd, http_stream_handler);
+        conn = new SrsHttpConn(this, client_stfd, http_stream_mux);
 #else
         srs_warn("close http client for server not support http-server");
         srs_close_stfd(client_stfd);
@@ -973,22 +1013,6 @@ int SrsServer::on_reload_vhost_removed(std::string /*vhost*/)
     return ret;
 }
 
-int SrsServer::on_reload_vhost_http_updated()
-{
-    int ret = ERROR_SUCCESS;
-    
-#ifdef SRS_AUTO_HTTP_SERVER
-    srs_freep(http_stream_handler);
-    http_stream_handler = SrsHttpHandler::create_http_stream();
-
-    if ((ret = http_stream_handler->initialize()) != ERROR_SUCCESS) {
-        return ret;
-    }
-#endif
-
-    return ret;
-}
-
 int SrsServer::on_reload_http_api_enabled()
 {
     int ret = ERROR_SUCCESS;
@@ -1048,5 +1072,25 @@ int SrsServer::on_reload_http_stream_updated()
 #endif
     
     return ret;
+}
+
+int SrsServer::on_publish(SrsSource* s, SrsRequest* r)
+{
+    int ret = ERROR_SUCCESS;
+    
+#ifdef SRS_AUTO_HTTP_SERVER
+    if ((ret = http_stream_mux->mount(s, r)) != ERROR_SUCCESS) {
+        return ret;
+    }
+#endif
+    
+    return ret;
+}
+
+void SrsServer::on_unpublish(SrsSource* s, SrsRequest* r)
+{
+#ifdef SRS_AUTO_HTTP_SERVER
+    http_stream_mux->unmount(s, r);
+#endif
 }
 

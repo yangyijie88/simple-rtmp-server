@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -40,7 +40,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 extern int64_t srs_get_system_time_ms();
 extern int64_t srs_get_system_startup_time_ms();
 // the deamon st-thread will update it.
-extern void srs_update_system_time_ms();
+extern int64_t srs_update_system_time_ms();
 
 // dns resolve utility, return the resolved ip address.
 extern std::string srs_dns_resolve(std::string host);
@@ -58,6 +58,9 @@ extern std::string srs_string_trim_start(std::string str, std::string trim_chars
 extern std::string srs_string_remove(std::string str, std::string remove_chars);
 // whether string end with
 extern bool srs_string_ends_with(std::string str, std::string flag);
+
+// create dir recursively
+extern int srs_create_dir_recursively(std::string dir);
 
 #endif
 

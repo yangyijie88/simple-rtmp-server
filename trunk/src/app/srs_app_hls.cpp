@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -68,7 +68,7 @@ using namespace std;
 #include <srs_kernel_utility.hpp>
 #include <srs_app_avc_aac.hpp>
 #include <srs_kernel_file.hpp>
-#include <srs_kernel_buffer.hpp>
+#include <srs_protocol_buffer.hpp>
 
 // max PES packets size to flush the video.
 #define SRS_AUTO_HLS_AUDIO_CACHE_SIZE 1024 * 1024
@@ -198,9 +198,10 @@ public:
 
         return ret;
     }
-    static int write_frame(SrsFileWriter* writer, SrsMpegtsFrame* frame, SrsBuffer* buffer)
+    static int write_frame(SrsFileWriter* writer, SrsMpegtsFrame* frame, SrsSimpleBuffer* buffer,bool is_video)
     {
         int ret = ERROR_SUCCESS;
+        int if_write_pcr=0;
         
         if (!buffer->bytes() || buffer->length() <= 0) {
             return ret;
@@ -231,9 +232,24 @@ public:
             // continuity_counter; //4bits
             *p++ = 0x10 | (frame->cc & 0x0f);
             
+            if(first&&frame->key&&is_video)
+				{
+					if_write_pcr=1;
+				}
+				else if(is_video)
+				{
+					writer->pcr_packet_count++;
+					if(writer->pcr_packet_count>=3)
+					{
+						writer->pcr_packet_count=0;
+						if_write_pcr=1;
+					}
+				}
+
             if (first) {
                 first = false;
-                if (frame->key) {
+                if (if_write_pcr) {
+                	if_write_pcr=0;
                     p[-1] |= 0x20; // Both Adaption and Payload
                     *p++ = 7;    // size
                     *p++ = 0x50; // random access + PCR
@@ -401,6 +417,15 @@ private:
     }
 };
 
+SrsHlsAacJitter::SrsHlsAacJitter()
+{
+    base_pts = 0;
+    nb_samples = 0;
+
+    // TODO: config it, 0 means no adjust
+    sync_ms = SRS_CONF_DEFAULT_AAC_SYNC;
+}
+
 SrsHlsAacJitter::~SrsHlsAacJitter()
 {
 }
@@ -486,22 +511,22 @@ int SrsTSMuxer::open(string _path)
     return ret;
 }
 
-int SrsTSMuxer::write_audio(SrsMpegtsFrame* af, SrsBuffer* ab)
+int SrsTSMuxer::write_audio(SrsMpegtsFrame* af, SrsSimpleBuffer* ab)
 {
     int ret = ERROR_SUCCESS;
     
-    if ((ret = SrsMpegtsWriter::write_frame(writer, af, ab)) != ERROR_SUCCESS) {
+    if ((ret = SrsMpegtsWriter::write_frame(writer, af, ab,false)) != ERROR_SUCCESS) {
         return ret;
     }
     
     return ret;
 }
 
-int SrsTSMuxer::write_video(SrsMpegtsFrame* vf, SrsBuffer* vb)
+int SrsTSMuxer::write_video(SrsMpegtsFrame* vf, SrsSimpleBuffer* vb)
 {
     int ret = ERROR_SUCCESS;
     
-    if ((ret = SrsMpegtsWriter::write_frame(writer, vf, vb)) != ERROR_SUCCESS) {
+    if ((ret = SrsMpegtsWriter::write_frame(writer, vf, vb,true)) != ERROR_SUCCESS) {
         return ret;
     }
     
@@ -541,15 +566,6 @@ void SrsHlsSegment::update_duration(int64_t current_frame_dts)
     srs_assert(duration >= 0);
     
     return;
-}
-
-SrsHlsAacJitter::SrsHlsAacJitter()
-{
-    base_pts = 0;
-    nb_samples = 0;
-
-    // TODO: config it, 0 means no adjust
-    sync_ms = SRS_CONF_DEFAULT_AAC_SYNC;
 }
 
 SrsHlsMuxer::SrsHlsMuxer()
@@ -659,7 +675,7 @@ bool SrsHlsMuxer::is_segment_overflow()
     return current->duration >= hls_fragment;
 }
 
-int SrsHlsMuxer::flush_audio(SrsMpegtsFrame* af, SrsBuffer* ab)
+int SrsHlsMuxer::flush_audio(SrsMpegtsFrame* af, SrsSimpleBuffer* ab)
 {
     int ret = ERROR_SUCCESS;
 
@@ -686,7 +702,7 @@ int SrsHlsMuxer::flush_audio(SrsMpegtsFrame* af, SrsBuffer* ab)
     return ret;
 }
 
-int SrsHlsMuxer::flush_video(SrsMpegtsFrame* /*af*/, SrsBuffer* /*ab*/, SrsMpegtsFrame* vf, SrsBuffer* vb)
+int SrsHlsMuxer::flush_video(SrsMpegtsFrame* /*af*/, SrsSimpleBuffer* /*ab*/, SrsMpegtsFrame* vf, SrsSimpleBuffer* vb)
 {
     int ret = ERROR_SUCCESS;
 
@@ -951,16 +967,12 @@ int SrsHlsMuxer::create_dir()
     app_dir += app;
     
     // TODO: cleanup the dir when startup.
-
-    mode_t mode = S_IRUSR|S_IWUSR|S_IXUSR|S_IRGRP|S_IWGRP|S_IXGRP|S_IROTH|S_IXOTH;
-    if (::mkdir(app_dir.c_str(), mode) < 0) {
-        if (errno != EEXIST) {
-            ret = ERROR_HLS_CREATE_DIR;
-            srs_error("create app dir %s failed. ret=%d", app_dir.c_str(), ret);
-            return ret;
-        }
+    
+    if ((ret = srs_create_dir_recursively(app_dir)) != ERROR_SUCCESS) {
+        srs_error("create app dir %s failed. ret=%d", app_dir.c_str(), ret);
+        return ret;
     }
-    srs_info("create app dir %s success.", app_dir.c_str());
+    srs_info("create app dir %s ok", app_dir.c_str());
 
     return ret;
 }
@@ -969,8 +981,8 @@ SrsHlsCache::SrsHlsCache()
 {
     aac_jitter = new SrsHlsAacJitter();
     
-    ab = new SrsBuffer();
-    vb = new SrsBuffer();
+    ab = new SrsSimpleBuffer();
+    vb = new SrsSimpleBuffer();
     
     af = new SrsMpegtsFrame();
     vf = new SrsMpegtsFrame();
@@ -1435,15 +1447,16 @@ int SrsHls::on_meta_data(SrsAmf0Object* metadata)
     return ret;
 }
 
-int SrsHls::on_audio(SrsSharedPtrMessage* audio)
+int SrsHls::on_audio(SrsSharedPtrMessage* __audio)
 {
     int ret = ERROR_SUCCESS;
-    
-    SrsAutoFree(SrsSharedPtrMessage, audio);
     
     if (!hls_enabled) {
         return ret;
     }
+
+    SrsSharedPtrMessage* audio = __audio->copy();
+    SrsAutoFree(SrsSharedPtrMessage, audio);
     
     sample->clear();
     if ((ret = codec->audio_aac_demux(audio->payload, audio->size, sample)) != ERROR_SUCCESS) {
@@ -1466,7 +1479,7 @@ int SrsHls::on_audio(SrsSharedPtrMessage* audio)
     }
     
     // the pts calc from rtmp/flv header.
-    int64_t pts = audio->header.timestamp * 90;
+    int64_t pts = audio->timestamp * 90;
     
     // for pure audio, we need to update the stream dts also.
     stream_dts = pts;
@@ -1479,15 +1492,16 @@ int SrsHls::on_audio(SrsSharedPtrMessage* audio)
     return ret;
 }
 
-int SrsHls::on_video(SrsSharedPtrMessage* video)
+int SrsHls::on_video(SrsSharedPtrMessage* __video)
 {
     int ret = ERROR_SUCCESS;
-    
-    SrsAutoFree(SrsSharedPtrMessage, video);
     
     if (!hls_enabled) {
         return ret;
     }
+
+    SrsSharedPtrMessage* video = __video->copy();
+    SrsAutoFree(SrsSharedPtrMessage, video);
     
     sample->clear();
     if ((ret = codec->video_avc_demux(video->payload, video->size, sample)) != ERROR_SUCCESS) {
@@ -1516,7 +1530,7 @@ int SrsHls::on_video(SrsSharedPtrMessage* video)
         return ret;
     }
     
-    int64_t dts = video->header.timestamp * 90;
+    int64_t dts = video->timestamp * 90;
     stream_dts = dts;
     if ((ret = hls_cache->write_video(codec, muxer, dts, sample)) != ERROR_SUCCESS) {
         srs_error("hls cache write video failed. ret=%d", ret);

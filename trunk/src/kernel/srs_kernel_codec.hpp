@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -142,6 +142,25 @@ enum SrsCodecAudio
     SrsCodecAudioSpeex                                 = 11,
     SrsCodecAudioReservedMP3_8kHz                     = 14,
     SrsCodecAudioReservedDeviceSpecificSound         = 15,
+};
+
+/**
+* the FLV/RTMP supported audio sample rate.
+* Sampling rate. The following values are defined:
+* 0 = 5.5 kHz = 5512 Hz
+* 1 = 11 kHz = 11025 Hz
+* 2 = 22 kHz = 22050 Hz
+* 3 = 44 kHz = 44100 Hz
+*/
+enum SrsCodecAudioSampleRate
+{
+    // set to the max value to reserved, for array map.
+    SrsCodecAudioSampleRateReserved                 = 4,
+    
+    SrsCodecAudioSampleRate5512                     = 0,
+    SrsCodecAudioSampleRate11025                    = 1,
+    SrsCodecAudioSampleRate22050                    = 2,
+    SrsCodecAudioSampleRate44100                    = 3,
 };
 
 /**

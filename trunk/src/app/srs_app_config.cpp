@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -45,6 +45,7 @@ using namespace std;
 #include <srs_app_source.hpp>
 #include <srs_kernel_file.hpp>
 #include <srs_app_utility.hpp>
+#include <srs_core_performance.hpp>
 
 using namespace _srs_internal;
 
@@ -433,7 +434,8 @@ int SrsConfig::reload_conf(SrsConfig* conf)
     // always support reload without additional code:
     //      chunk_size, ff_log_dir, max_connections,
     //      bandcheck, http_hooks, heartbeat, 
-    //      token_traverse, debug_srs_upnode
+    //      token_traverse, debug_srs_upnode,
+    //      security
 
     // merge config: listen
     if (!srs_directive_equals(root->get("listen"), old_root->get("listen"))) {
@@ -817,7 +819,51 @@ int SrsConfig::reload_vhost(SrsConfDirective* old_root)
                         return ret;
                     }
                 }
-                srs_trace("vhost %s reload hls success.", vhost.c_str());
+                srs_trace("vhost %s reload hlsdvrsuccess.", vhost.c_str());
+            }
+            // mr, only one per vhost
+            if (!srs_directive_equals(new_vhost->get("mr"), old_vhost->get("mr"))) {
+                for (it = subscribes.begin(); it != subscribes.end(); ++it) {
+                    ISrsReloadHandler* subscribe = *it;
+                    if ((ret = subscribe->on_reload_vhost_mr(vhost)) != ERROR_SUCCESS) {
+                        srs_error("vhost %s notify subscribes mr failed. ret=%d", vhost.c_str(), ret);
+                        return ret;
+                    }
+                }
+                srs_trace("vhost %s reload mr success.", vhost.c_str());
+            }
+            // chunk_size, only one per vhost.
+            if (!srs_directive_equals(new_vhost->get("chunk_size"), old_vhost->get("chunk_size"))) {
+                for (it = subscribes.begin(); it != subscribes.end(); ++it) {
+                    ISrsReloadHandler* subscribe = *it;
+                    if ((ret = subscribe->on_reload_vhost_chunk_size(vhost)) != ERROR_SUCCESS) {
+                        srs_error("vhost %s notify subscribes chunk_size failed. ret=%d", vhost.c_str(), ret);
+                        return ret;
+                    }
+                }
+                srs_trace("vhost %s reload chunk_size success.", vhost.c_str());
+            }
+            // mw, only one per vhost
+            if (!srs_directive_equals(new_vhost->get("mw_latency"), old_vhost->get("mw_latency"))) {
+                for (it = subscribes.begin(); it != subscribes.end(); ++it) {
+                    ISrsReloadHandler* subscribe = *it;
+                    if ((ret = subscribe->on_reload_vhost_mw(vhost)) != ERROR_SUCCESS) {
+                        srs_error("vhost %s notify subscribes mw failed. ret=%d", vhost.c_str(), ret);
+                        return ret;
+                    }
+                }
+                srs_trace("vhost %s reload mw success.", vhost.c_str());
+            }
+            // min_latency, only one per vhost
+            if (!srs_directive_equals(new_vhost->get("min_latency"), old_vhost->get("min_latency"))) {
+                for (it = subscribes.begin(); it != subscribes.end(); ++it) {
+                    ISrsReloadHandler* subscribe = *it;
+                    if ((ret = subscribe->on_reload_vhost_realtime(vhost)) != ERROR_SUCCESS) {
+                        srs_error("vhost %s notify subscribes min_latency failed. ret=%d", vhost.c_str(), ret);
+                        return ret;
+                    }
+                }
+                srs_trace("vhost %s reload min_latency success.", vhost.c_str());
             }
             // http, only one per vhost.
             if (!srs_directive_equals(new_vhost->get("http"), old_vhost->get("http"))) {
@@ -829,6 +875,17 @@ int SrsConfig::reload_vhost(SrsConfDirective* old_root)
                     }
                 }
                 srs_trace("vhost %s reload http success.", vhost.c_str());
+            }
+            // http_flv, only one per vhost.
+            if (!srs_directive_equals(new_vhost->get("http_flv"), old_vhost->get("http_flv"))) {
+                for (it = subscribes.begin(); it != subscribes.end(); ++it) {
+                    ISrsReloadHandler* subscribe = *it;
+                    if ((ret = subscribe->on_reload_vhost_http_flv_updated()) != ERROR_SUCCESS) {
+                        srs_error("vhost %s notify subscribes http_flv failed. ret=%d", vhost.c_str(), ret);
+                        return ret;
+                    }
+                }
+                srs_trace("vhost %s reload http_flv success.", vhost.c_str());
             }
             // transcode, many per vhost.
             if ((ret = reload_transcode(new_vhost, old_vhost)) != ERROR_SUCCESS) {
@@ -1167,7 +1224,7 @@ void SrsConfig::print_help(char** argv)
 {
     printf(
         RTMP_SIG_SRS_NAME" "RTMP_SIG_SRS_VERSION" "RTMP_SIG_SRS_COPYRIGHT"\n" 
-        "license: "RTMP_SIG_SRS_LICENSE"\n"
+        "License: "RTMP_SIG_SRS_LICENSE"\n"
         "Primary: "RTMP_SIG_SRS_PRIMARY"\n"
         "Authors: "RTMP_SIG_SRS_AUTHROS"\n"
         "Build: "SRS_AUTO_BUILD_DATE" Configuration:"SRS_AUTO_USER_CONFIGURE"\n"
@@ -1317,6 +1374,8 @@ int SrsConfig::check_config()
                 && n != "time_jitter" 
                 && n != "atc" && n != "atc_auto"
                 && n != "debug_srs_upnode"
+                && n != "mr" && n != "mw_latency" && n != "min_latency"
+                && n != "security" && n != "http_flv"
             ) {
                 ret = ERROR_SYSTEM_CONFIG_INVALID;
                 srs_error("unsupported vhost directive %s, ret=%d", n.c_str(), ret);
@@ -1331,6 +1390,16 @@ int SrsConfig::check_config()
                     ) {
                         ret = ERROR_SYSTEM_CONFIG_INVALID;
                         srs_error("unsupported vhost dvr directive %s, ret=%d", m.c_str(), ret);
+                        return ret;
+                    }
+                }
+            } else if (n == "mr") {
+                for (int j = 0; j < (int)conf->directives.size(); j++) {
+                    string m = conf->at(j)->name.c_str();
+                    if (m != "enabled" && m != "latency"
+                    ) {
+                        ret = ERROR_SYSTEM_CONFIG_INVALID;
+                        srs_error("unsupported vhost mr directive %s, ret=%d", m.c_str(), ret);
                         return ret;
                     }
                 }
@@ -1354,6 +1423,15 @@ int SrsConfig::check_config()
                         return ret;
                     }
                 }
+            } else if (n == "http_flv") {
+                for (int j = 0; j < (int)conf->directives.size(); j++) {
+                    string m = conf->at(j)->name.c_str();
+                    if (m != "enabled" && m != "mount" && m != "fast_cache") {
+                        ret = ERROR_SYSTEM_CONFIG_INVALID;
+                        srs_error("unsupported vhost http_flv directive %s, ret=%d", m.c_str(), ret);
+                        return ret;
+                    }
+                }
             } else if (n == "hls") {
                 for (int j = 0; j < (int)conf->directives.size(); j++) {
                     string m = conf->at(j)->name.c_str();
@@ -1368,6 +1446,7 @@ int SrsConfig::check_config()
                     string m = conf->at(j)->name.c_str();
                     if (m != "enabled" && m != "on_connect" && m != "on_close" && m != "on_publish"
                         && m != "on_unpublish" && m != "on_play" && m != "on_stop"
+                        && m != "on_dvr"
                     ) {
                         ret = ERROR_SYSTEM_CONFIG_INVALID;
                         srs_error("unsupported vhost http_hooks directive %s, ret=%d", m.c_str(), ret);
@@ -1384,6 +1463,16 @@ int SrsConfig::check_config()
                         return ret;
                     }
                 }*/
+            } else if (n == "security") {
+                for (int j = 0; j < (int)conf->directives.size(); j++) {
+                    SrsConfDirective* security = conf->at(j);
+                    string m = security->name.c_str();
+                    if (m != "enabled" && m != "deny" && m != "allow") {
+                        ret = ERROR_SYSTEM_CONFIG_INVALID;
+                        srs_error("unsupported vhost security directive %s, ret=%d", m.c_str(), ret);
+                        return ret;
+                    }
+                }
             } else if (n == "transcode") {
                 for (int j = 0; j < (int)conf->directives.size(); j++) {
                     SrsConfDirective* trans = conf->at(j);
@@ -1477,12 +1566,36 @@ int SrsConfig::check_config()
     
     // check max connections of system limits
     if (true) {
+        int nb_consumed_fds = (int)get_listen().size();
+        if (get_http_api_listen() > 0) {
+            nb_consumed_fds++;
+        }
+        if (get_http_stream_listen() > 0) {
+            nb_consumed_fds++;
+        }
+        if (get_log_tank_file()) {
+            nb_consumed_fds++;
+        }
+        // 0, 1, 2 for stdin, stdout and stderr.
+        nb_consumed_fds += 3;
+        
+        int nb_connections = get_max_connections();
+        int nb_total = nb_connections + nb_consumed_fds;
+        
         int max_open_files = sysconf(_SC_OPEN_MAX);
-        if (get_max_connections() > max_open_files) {
+        int nb_canbe = max_open_files - nb_consumed_fds - 1;
+
+        // for each play connections, we open a pipe(2fds) to convert SrsConsumver to io,
+        // refine performance, @see: https://github.com/winlinvip/simple-rtmp-server/issues/194
+        if (nb_total >= max_open_files) {
             ret = ERROR_SYSTEM_CONFIG_INVALID;
-            srs_error("invalid max_connections=%d, system limit to %d, ret=%d. "
-                "you can login as root and set the limit: ulimit -HSn %d", get_max_connections(), max_open_files,
-                ret, get_max_connections());
+            srs_error("invalid max_connections=%d, required=%d, system limit to %d, "
+                "total=%d(max_connections=%d, nb_consumed_fds=%d), ret=%d. "
+                "you can change max_connections from %d to %d, or "
+                "you can login as root and set the limit: ulimit -HSn %d", 
+                nb_connections, nb_total + 1, max_open_files, 
+                nb_total, nb_connections, nb_consumed_fds,
+                ret, nb_connections, nb_canbe, nb_total + 1);
             return ret;
         }
     }
@@ -1906,7 +2019,7 @@ bool SrsConfig::get_gop_cache(string vhost)
     SrsConfDirective* conf = get_vhost(vhost);
 
     if (!conf) {
-        return true;
+        return SRS_PERF_GOP_CACHE;
     }
     
     conf = conf->get("gop_cache");
@@ -1914,7 +2027,7 @@ bool SrsConfig::get_gop_cache(string vhost)
         return false;
     }
     
-    return true;
+    return SRS_PERF_GOP_CACHE;
 }
 
 bool SrsConfig::get_debug_srs_upnode(string vhost)
@@ -1987,12 +2100,12 @@ double SrsConfig::get_queue_length(string vhost)
     SrsConfDirective* conf = get_vhost(vhost);
 
     if (!conf) {
-        return SRS_CONF_DEFAULT_QUEUE_LENGTH;
+        return SRS_PERF_PLAY_QUEUE;
     }
     
     conf = conf->get("queue_length");
     if (!conf || conf->arg0().empty()) {
-        return SRS_CONF_DEFAULT_QUEUE_LENGTH;
+        return SRS_PERF_PLAY_QUEUE;
     }
     
     return ::atoi(conf->arg0().c_str());
@@ -2053,6 +2166,80 @@ int SrsConfig::get_chunk_size(string vhost)
     }
 
     return ::atoi(conf->arg0().c_str());
+}
+
+bool SrsConfig::get_mr_enabled(string vhost)
+{
+    SrsConfDirective* conf = get_vhost(vhost);
+
+    if (!conf) {
+        return SRS_PERF_MR_ENABLED;
+    }
+
+    conf = conf->get("mr");
+    if (!conf) {
+        return SRS_PERF_MR_ENABLED;
+    }
+
+    conf = conf->get("enabled");
+    if (!conf || conf->arg0() != "on") {
+        return SRS_PERF_MR_ENABLED;
+    }
+
+    return true;
+}
+
+int SrsConfig::get_mr_sleep_ms(string vhost)
+{
+    SrsConfDirective* conf = get_vhost(vhost);
+
+    if (!conf) {
+        return SRS_PERF_MR_SLEEP;
+    }
+
+    conf = conf->get("mr");
+    if (!conf) {
+        return SRS_PERF_MR_SLEEP;
+    }
+
+    conf = conf->get("latency");
+    if (!conf || conf->arg0().empty()) {
+        return SRS_PERF_MR_SLEEP;
+    }
+
+    return ::atoi(conf->arg0().c_str());
+}
+
+int SrsConfig::get_mw_sleep_ms(string vhost)
+{
+    SrsConfDirective* conf = get_vhost(vhost);
+
+    if (!conf) {
+        return SRS_PERF_MW_SLEEP;
+    }
+
+    conf = conf->get("mw_latency");
+    if (!conf || conf->arg0().empty()) {
+        return SRS_PERF_MW_SLEEP;
+    }
+
+    return ::atoi(conf->arg0().c_str());
+}
+
+bool SrsConfig::get_realtime_enabled(string vhost)
+{
+    SrsConfDirective* conf = get_vhost(vhost);
+
+    if (!conf) {
+        return SRS_PERF_MIN_LATENCY_ENABLED;
+    }
+
+    conf = conf->get("min_latency");
+    if (!conf || conf->arg0().empty()) {
+        return SRS_PERF_MIN_LATENCY_ENABLED;
+    }
+
+    return conf->arg0() == "on";
 }
 
 int SrsConfig::get_global_chunk_size()
@@ -2167,6 +2354,17 @@ SrsConfDirective* SrsConfig::get_vhost_on_stop(string vhost)
     }
     
     return conf->get("on_stop");
+}
+
+SrsConfDirective* SrsConfig::get_vhost_on_dvr(string vhost)
+{
+    SrsConfDirective* conf = get_vhost_http_hooks(vhost);
+
+    if (!conf) { 
+        return NULL;
+    }
+    
+    return conf->get("on_dvr");
 }
 
 bool SrsConfig::get_bw_check_enabled(string vhost)
@@ -2300,6 +2498,43 @@ bool SrsConfig::get_vhost_edge_token_traverse(string vhost)
     }
     
     return true;
+}
+
+bool SrsConfig::get_security_enabled(string vhost)
+{
+    SrsConfDirective* conf = get_vhost(vhost);
+    
+    if (!conf) {
+        return SRS_CONF_DEFAULT_SECURITY_ENABLED;
+    }
+    
+    SrsConfDirective* security = conf->get("security");
+    if (!security) {
+        return SRS_CONF_DEFAULT_SECURITY_ENABLED;
+    }
+    
+    conf = security->get("enabled");
+    if (!conf || conf->arg0() != "on") {
+        return SRS_CONF_DEFAULT_SECURITY_ENABLED;
+    }
+    
+    return true;
+}
+
+SrsConfDirective* SrsConfig::get_security_rules(string vhost)
+{
+    SrsConfDirective* conf = get_vhost(vhost);
+    
+    if (!conf) {
+        return NULL;
+    }
+    
+    SrsConfDirective* security = conf->get("security");
+    if (!security) {
+        return NULL;
+    }
+    
+    return security;
 }
 
 SrsConfDirective* SrsConfig::get_transcode(string vhost, string scope)
@@ -3205,6 +3440,74 @@ string SrsConfig::get_vhost_http_dir(string vhost)
     conf = conf->get("dir");
     if (!conf || conf->arg0().empty()) {
         return SRS_CONF_DEFAULT_HTTP_DIR;
+    }
+    
+    return conf->arg0();
+}
+
+bool SrsConfig::get_vhost_http_flv_enabled(string vhost)
+{
+    SrsConfDirective* conf = get_vhost(vhost);
+    if (!conf) {
+        return false;
+    }
+    
+    conf = conf->get("http_flv");
+    if (!conf) {
+        return false;
+    }
+    
+    conf = conf->get("enabled");
+    if (!conf) {
+        return false;
+    }
+    
+    if (conf->arg0() == "on") {
+        return true;
+    }
+    
+    return false;
+}
+
+double SrsConfig::get_vhost_http_flv_fast_cache(string vhost)
+{
+    SrsConfDirective* conf = get_vhost(vhost);
+    if (!conf) {
+        return SRS_CONF_DEFAULT_HTTP_AUDIO_FAST_CACHE;
+    }
+    
+    conf = conf->get("http_flv");
+    if (!conf) {
+        return SRS_CONF_DEFAULT_HTTP_AUDIO_FAST_CACHE;
+    }
+    
+    conf = conf->get("fast_cache");
+    if (!conf) {
+        return SRS_CONF_DEFAULT_HTTP_AUDIO_FAST_CACHE;
+    }
+    
+    if (conf->arg0().empty()) {
+        return SRS_CONF_DEFAULT_HTTP_AUDIO_FAST_CACHE;
+    }
+    
+    return ::atof(conf->arg0().c_str());
+}
+
+string SrsConfig::get_vhost_http_flv_mount(string vhost)
+{
+    SrsConfDirective* conf = get_vhost(vhost);
+    if (!conf) {
+        return SRS_CONF_DEFAULT_HTTP_FLV_MOUNT;
+    }
+    
+    conf = conf->get("http_flv");
+    if (!conf) {
+        return SRS_CONF_DEFAULT_HTTP_FLV_MOUNT;
+    }
+    
+    conf = conf->get("mount");
+    if (!conf || conf->arg0().empty()) {
+        return SRS_CONF_DEFAULT_HTTP_FLV_MOUNT;
     }
     
     return conf->arg0();

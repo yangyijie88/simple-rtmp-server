@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -36,11 +36,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include <srs_app_st.hpp>
 #include <srs_app_reload.hpp>
+#include <srs_core_performance.hpp>
 
+class SrsConsumer;
 class SrsPlayEdge;
 class SrsPublishEdge;
 class SrsSource;
-class SrsMessage;
+class SrsCommonMessage;
 class SrsOnMetaDataPacket;
 class SrsSharedPtrMessage;
 class SrsForwarder;
@@ -48,6 +50,7 @@ class SrsRequest;
 class SrsStSocket;
 class SrsRtmpServer;
 class SrsEdgeProxyContext;
+class SrsMessageArray;
 #ifdef SRS_AUTO_HLS
 class SrsHls;
 #endif
@@ -100,6 +103,34 @@ public:
     virtual int get_time();
 };
 
+#ifdef SRS_PERF_QUEUE_FAST_VECTOR
+/**
+* to alloc and increase fixed space,
+* fast remove and insert for msgs sender.
+* @see https://github.com/winlinvip/simple-rtmp-server/issues/251
+*/
+class SrsFastVector
+{
+private:
+    SrsSharedPtrMessage** msgs;
+    int nb_msgs;
+    int count;
+public:
+    SrsFastVector();
+    virtual ~SrsFastVector();
+public:
+    virtual int size();
+    virtual int begin();
+    virtual int end();
+    virtual SrsSharedPtrMessage** data();
+    virtual SrsSharedPtrMessage* at(int index);
+    virtual void clear();
+    virtual void erase(int _begin, int _end);
+    virtual void push_back(SrsSharedPtrMessage* msg);
+    virtual void free();
+};
+#endif
+
 /**
 * the message queue for the consumer(client), forwarder.
 * we limit the size in seconds, drop old messages(the whole gop) if full.
@@ -107,14 +138,27 @@ public:
 class SrsMessageQueue
 {
 private:
+    bool _ignore_shrink;
     int64_t av_start_time;
     int64_t av_end_time;
     int queue_size_ms;
+#ifdef SRS_PERF_QUEUE_FAST_VECTOR
+    SrsFastVector msgs;
+#else
     std::vector<SrsSharedPtrMessage*> msgs;
+#endif
 public:
-    SrsMessageQueue();
+    SrsMessageQueue(bool ignore_shrink = false);
     virtual ~SrsMessageQueue();
 public:
+    /**
+    * get the size of queue.
+    */
+    virtual int size();
+    /**
+    * get the duration of queue.
+    */
+    virtual int duration();
     /**
     * set the queue size
     * @param queue_size the queue size in seconds.
@@ -124,15 +168,21 @@ public:
     /**
     * enqueue the message, the timestamp always monotonically.
     * @param msg, the msg to enqueue, user never free it whatever the return code.
+    * @param is_overflow, whether overflow and shrinked. NULL to ignore.
     */
-    virtual int enqueue(SrsSharedPtrMessage* msg);
+    virtual int enqueue(SrsSharedPtrMessage* msg, bool* is_overflow = NULL);
     /**
     * get packets in consumer queue.
-    * @pmsgs SrsMessages*[], used to store the msgs, user must alloc it.
+    * @pmsgs SrsSharedPtrMessage*[], used to store the msgs, user must alloc it.
     * @count the count in array, output param.
     * @max_count the max count to dequeue, must be positive.
     */
     virtual int dump_packets(int max_count, SrsSharedPtrMessage** pmsgs, int& count);
+    /**
+    * dumps packets to consumer, use specified args.
+    * @remark the atc/tba/tbv/ag are same to SrsConsumer.enqueue().
+    */
+    virtual int dump_packets(SrsConsumer* consumer, bool atc, int tba, int tbv, SrsRtmpJitterAlgorithm ag);
 private:
     /**
     * remove a gop from the front.
@@ -154,6 +204,14 @@ private:
     bool paused;
     // when source id changed, notice all consumers
     bool should_update_source_id;
+#ifdef SRS_PERF_QUEUE_COND_WAIT
+    // the cond wait for mw.
+    // @see https://github.com/winlinvip/simple-rtmp-server/issues/251
+    st_cond_t mw_wait;
+    bool mw_waiting;
+    int mw_min_msgs;
+    int mw_duration;
+#endif
 public:
     SrsConsumer(SrsSource* _source);
     virtual ~SrsConsumer();
@@ -173,6 +231,7 @@ public:
     virtual int get_time();
     /**
     * enqueue an shared ptr message.
+    * @param __msg, directly ptr, copy it if need to save it.
     * @param whether atc, donot use jitter correct if true.
     * @param tba timebase of audio.
     *         used to calc the audio time delta if time-jitter detected.
@@ -180,14 +239,27 @@ public:
     *        used to calc the video time delta if time-jitter detected.
     * @param ag the algorithm of time jitter.
     */
-    virtual int enqueue(SrsSharedPtrMessage* msg, bool atc, int tba, int tbv, SrsRtmpJitterAlgorithm ag);
+    virtual int enqueue(SrsSharedPtrMessage* __msg, bool atc, int tba, int tbv, SrsRtmpJitterAlgorithm ag);
     /**
     * get packets in consumer queue.
-    * @pmsgs SrsMessages*[], used to store the msgs, user must alloc it.
-    * @count the count in array, output param.
-    * @max_count the max count to dequeue, must be positive.
+    * @param msgs the msgs array to dump packets to send.
+    * @param count the count in array, output param.
     */
-    virtual int dump_packets(int max_count, SrsSharedPtrMessage** pmsgs, int& count);
+    virtual int dump_packets(SrsMessageArray* msgs, int& count);
+#ifdef SRS_PERF_QUEUE_COND_WAIT
+    /**
+    * wait for messages incomming, atleast nb_msgs and in duration.
+    * @param nb_msgs the messages count to wait.
+    * @param duration the messgae duration to wait.
+    */
+    virtual void wait(int nb_msgs, int duration);
+    /**
+    * when the consumer(for player) got msg from recv thread,
+    * it must be processed for maybe it's a close msg, so the cond
+    * wait must be wakeup.
+    */
+    virtual void wakeup();
+#endif
     /**
     * when client send the pause message.
     */
@@ -241,8 +313,9 @@ public:
     * only for h264 codec
     * 1. cache the gop when got h264 video packet.
     * 2. clear gop when got keyframe.
+    * @param __msg, directly ptr, copy it if need to save it.
     */
-    virtual int cache(SrsSharedPtrMessage* msg);
+    virtual int cache(SrsSharedPtrMessage* __msg);
     /**
     * clear the gop cache.
     */
@@ -271,6 +344,27 @@ public:
 };
 
 /**
+* the handler to handle the event of srs source.
+* for example, the http flv streaming module handle the event and 
+* mount http when rtmp start publishing.
+*/
+class ISrsSourceHandler
+{
+public:
+    ISrsSourceHandler();
+    virtual ~ISrsSourceHandler();
+public:
+    /**
+    * when stream start publish, mount stream.
+    */
+    virtual int on_publish(SrsSource* s, SrsRequest* r) = 0;
+    /**
+    * when stream stop publish, unmount stream.
+    */
+    virtual void on_unpublish(SrsSource* s, SrsRequest* r) = 0;
+};
+
+/**
 * live streaming source.
 */
 class SrsSource : public ISrsReloadHandler
@@ -280,11 +374,11 @@ private:
 public:
     /**
     * find stream by vhost/app/stream.
-    * @param req the client request.
-    * @param ppsource the matched source, if success never be NULL.
-    * @remark stream_url should without port and schema.
+    * @param r the client request.
+    * @param h the event handler for source.
+    * @param pps the matched source, if success never be NULL.
     */
-    static int find(SrsRequest* req, SrsSource** ppsource);
+    static int find(SrsRequest* r, ISrsSourceHandler* h, SrsSource** pps);
     /**
     * when system exit, destroy the sources,
     * for gmc to analysis mem leaks.
@@ -324,6 +418,8 @@ private:
     std::vector<SrsForwarder*> forwarders;
     // for aggregate message
     SrsStream* aggregate_stream;
+    // the event handler.
+    ISrsSourceHandler* handler;
 private:
     /**
     * the sample rate of audio in metadata.
@@ -355,10 +451,11 @@ public:
     * @param _req the client request object, 
     *     this object will deep copy it for reload.
     */
-    SrsSource(SrsRequest* req);
+    SrsSource();
     virtual ~SrsSource();
+// initialize, get and setter.
 public:
-    virtual int initialize();
+    virtual int initialize(SrsRequest* r, ISrsSourceHandler* h);
 // interface ISrsReloadHandler
 public:
     virtual int on_reload_vhost_atc(std::string vhost);
@@ -384,10 +481,10 @@ public:
 // logic data methods
 public:
     virtual bool can_publish();
-    virtual int on_meta_data(SrsMessage* msg, SrsOnMetaDataPacket* metadata);
-    virtual int on_audio(SrsMessage* audio);
-    virtual int on_video(SrsMessage* video);
-    virtual int on_aggregate(SrsMessage* msg);
+    virtual int on_meta_data(SrsCommonMessage* msg, SrsOnMetaDataPacket* metadata);
+    virtual int on_audio(SrsCommonMessage* audio);
+    virtual int on_video(SrsCommonMessage* video);
+    virtual int on_aggregate(SrsCommonMessage* msg);
     /**
     * the pre-publish is we are very sure we are
     * trying to publish stream, please lock the resource,
@@ -404,7 +501,17 @@ public:
     virtual void on_unpublish();
 // consumer methods
 public:
-    virtual int create_consumer(SrsConsumer*& consumer);
+    /**
+    * create consumer and dumps packets in cache.
+    * @param consumer, output the create consumer.
+    * @param ds, whether dumps the sequence header.
+    * @param dm, whether dumps the metadata.
+    * @param dg, whether dumps the gop cache.
+    */
+    virtual int create_consumer(
+        SrsConsumer*& consumer, 
+        bool ds = true, bool dm = true, bool dg = true
+    );
     virtual void on_consumer_destroy(SrsConsumer* consumer);
     virtual void set_cache(bool enabled);
 // internal
@@ -414,7 +521,7 @@ public:
     // for edge, when publish edge stream, check the state
     virtual int on_edge_start_publish();
     // for edge, proxy the publish
-    virtual int on_edge_proxy_publish(SrsMessage* msg);
+    virtual int on_edge_proxy_publish(SrsCommonMessage* msg);
     // for edge, proxy stop publish
     virtual void on_edge_proxy_unpublish();
 private:

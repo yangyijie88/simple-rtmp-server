@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -32,6 +32,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <string>
 
 #include <srs_kernel_consts.hpp>
+
+class SrsStream;
+class SrsMessageHeader;
 
 /**
 * parse the tcUrl, output the schema, host, vhost, app and port.
@@ -84,6 +87,45 @@ extern std::string srs_generate_tc_url(
 * @return true if completely equal; otherwise, false.
 */
 extern bool srs_bytes_equals(void* pa, void* pb, int size);
+
+/**
+* whether stream starts with the avc NALU in "AnnexB" 
+* from H.264-AVC-ISO_IEC_14496-10.pdf, page 211.
+* start code must be "N[00] 00 00 01" where N>=0
+* @param pnb_start_code output the size of start code, must >=3. 
+*       NULL to ignore.
+*/
+extern bool srs_avc_startswith_annexb(SrsStream* stream, int* pnb_start_code = NULL);
+
+/**
+* whether stream starts with the aac ADTS 
+* from aac-mp4a-format-ISO_IEC_14496-3+2001.pdf, page 75, 1.A.2.2 ADTS.
+* start code must be '1111 1111 1111'B, that is 0xFFF
+*/
+extern bool srs_aac_startswith_adts(SrsStream* stream);
+
+/**
+* generate the c0 chunk header for msg.
+* @param cache, the cache to write header.
+* @param nb_cache, the size of cache.
+* @return the size of header. 0 if cache not enough.
+*/
+extern int srs_chunk_header_c0(
+    int perfer_cid, u_int32_t timestamp, int32_t payload_length,
+    int8_t message_type, int32_t stream_id,
+    char* cache, int nb_cache
+);
+
+/**
+* generate the c3 chunk header for msg.
+* @param cache, the cache to write header.
+* @param nb_cache, the size of cache.
+* @return the size of header. 0 if cache not enough.
+*/
+extern int srs_chunk_header_c3(
+    int perfer_cid, u_int32_t timestamp, 
+    char* cache, int nb_cache
+);
 
 #endif
 

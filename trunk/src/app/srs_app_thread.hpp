@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -50,14 +50,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 * espectially on st_usleep(), so the cycle must check the loop,
 * when handler->cycle() has loop itself, for example:
 *         while (true):
-*             st_usleep(0);
 *             if (read_from_socket(skt) < 0) break;
 * if thread stop when read_from_socket, it's ok, the loop will break,
 * but when thread stop interrupt the s_usleep(0), then the loop is
 * death loop.
 * in a word, the handler->cycle() must:
 *         while (pthread->can_loop()):
-*             st_usleep(0);
 *             if (read_from_socket(skt) < 0) break;
 * check the loop, then it works.
 *
@@ -90,23 +88,26 @@ private:
     bool loop;
     bool can_run;
     bool _joinable;
+    const char* _name;
 private:
     ISrsThreadHandler* handler;
     int64_t cycle_interval_us;
 public:
     /**
     * initialize the thread.
+    * @param name, human readable name for st debug.
     * @param thread_handler, the cycle handler for the thread.
     * @param interval_us, the sleep interval when cycle finished.
     * @param joinable, if joinable, other thread must stop the thread.
     * @remark if joinable, thread never quit itself, or memory leak. 
     * @see: https://github.com/winlinvip/simple-rtmp-server/issues/78
+    * @remark about st debug, see st-1.9/README, _st_iterate_threads_flag
     */
     /**
     * TODO: FIXME: maybe all thread must be reap by others threads, 
     * @see: https://github.com/winlinvip/simple-rtmp-server/issues/77
     */
-    SrsThread(ISrsThreadHandler* thread_handler, int64_t interval_us, bool joinable);
+    SrsThread(const char* name, ISrsThreadHandler* thread_handler, int64_t interval_us, bool joinable);
     virtual ~SrsThread();
 public:
     /**

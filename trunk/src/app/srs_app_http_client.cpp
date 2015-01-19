@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -52,7 +52,7 @@ SrsHttpClient::~SrsHttpClient()
     srs_freep(parser);
 }
 
-int SrsHttpClient::post(SrsHttpUri* uri, string req, string& res)
+int SrsHttpClient::post(SrsHttpUri* uri, string req, int& status_code, string& res)
 {
     res = "";
     
@@ -104,6 +104,8 @@ int SrsHttpClient::post(SrsHttpUri* uri, string req, string& res)
 
     srs_assert(msg);
     srs_assert(msg->is_complete());
+    
+    status_code = (int)msg->status_code();
     
     // get response body.
     if (msg->body_size() > 0) {

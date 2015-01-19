@@ -1,7 +1,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -54,9 +54,10 @@ public:
     /**
     * to post data to the uri.
     * @param req the data post to uri.
-    * @param res the response data from server.
+    * @param status_code the output status code response by server.
+    * @param res output the response data from server.
     */
-    virtual int post(SrsHttpUri* uri, std::string req, std::string& res);
+    virtual int post(SrsHttpUri* uri, std::string req, int& status_code, std::string& res);
 private:
     virtual void disconnect();
     virtual int connect(SrsHttpUri* uri);

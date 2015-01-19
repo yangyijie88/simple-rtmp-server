@@ -2,7 +2,7 @@
 '''
 The MIT License (MIT)
 
-Copyright (c) 2013-2014 winlin
+Copyright (c) 2013-2015 winlin
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -87,6 +87,7 @@ class RESTClients(object):
                   "action": "on_connect",
                   "client_id": 1985,
                   "ip": "192.168.1.10", "vhost": "video.test.com", "app": "live",
+                  "tcUrl": "rtmp://video.test.com/live?key=d2fa801d08e3f90ed1e1670e6e52651a",
                   "pageUrl": "http://www.test.com/live.html"
               }
     on_close:
@@ -236,6 +237,74 @@ class RESTStreams(object):
         ))
 
         # TODO: process the on_unpublish event
+
+        return code
+
+'''
+handle the dvrs requests: dvr stream.
+'''
+class RESTDvrs(object):
+    exposed = True
+
+    def GET(self):
+        enable_crossdomain()
+
+        dvrs = {}
+        return json.dumps(dvrs)
+
+    '''
+    for SRS hook: on_dvr
+    on_dvr:
+        when srs reap a dvr file, call the hook,
+        the request in the POST data string is a object encode by json:
+              {
+                  "action": "on_dvr",
+                  "client_id": 1985,
+                  "ip": "192.168.1.10", "vhost": "video.test.com", "app": "live",
+                  "stream": "livestream",
+                  "cwd": "/usr/local/srs",
+                  "file": "./objs/nginx/html/live/livestream.1420254068776.flv"
+              }
+    if valid, the hook must return HTTP code 200(Stauts OK) and response
+    an int value specifies the error code(0 corresponding to success):
+          0
+    '''
+    def POST(self):
+        enable_crossdomain()
+
+        # return the error code in str
+        code = Error.success
+
+        req = cherrypy.request.body.read()
+        trace("post to dvrs, req=%s"%(req))
+        try:
+            json_req = json.loads(req)
+        except Exception, ex:
+            code = Error.system_parse_json
+            trace("parse the request to json failed, req=%s, ex=%s, code=%s"%(req, ex, code))
+            return str(code)
+
+        action = json_req["action"]
+        if action == "on_dvr":
+            code = self.__on_dvr(json_req)
+        else:
+            trace("invalid request action: %s"%(json_req["action"]))
+            code = Error.request_invalid_action
+
+        return str(code)
+
+    def OPTIONS(self, *args, **kwargs):
+        enable_crossdomain()
+
+    def __on_dvr(self, req):
+        code = Error.success
+
+        trace("srs %s: client id=%s, ip=%s, vhost=%s, app=%s, stream=%s, cwd=%s, file=%s"%(
+            req["action"], req["client_id"], req["ip"], req["vhost"], req["app"], req["stream"],
+            req["cwd"], req["file"]
+        ))
+
+        # TODO: process the on_dvr event
 
         return code
 
@@ -1038,6 +1107,7 @@ class V1(object):
         self.clients = RESTClients()
         self.streams = RESTStreams()
         self.sessions = RESTSessions()
+        self.dvrs = RESTDvrs()
         self.chats = RESTChats()
         self.servers = RESTServers()
         self.nodes = RESTNodes()
@@ -1047,6 +1117,7 @@ class V1(object):
             "clients": "for srs http callback, to handle the clients requests: connect/disconnect vhost/app.", 
             "streams": "for srs http callback, to handle the streams requests: publish/unpublish stream.",
             "sessions": "for srs http callback, to handle the sessions requests: client play/stop stream",
+            "dvrs": "for srs http callback, to handle the dvr requests: dvr stream.",
             "chats": "for srs demo meeting, the chat streams, public chat room.",
             "nodes": {
                 "summary": "for srs cdn node",
@@ -1082,7 +1153,7 @@ if __name__ != "__main__":
 
 # check the user options
 if len(sys.argv) <= 1:
-    print "SRS api callback server, Copyright (c) 2013-2014 winlin"
+    print "SRS api callback server, Copyright (c) 2013-2015 winlin"
     print "Usage: python %s <port>"%(sys.argv[0])
     print "    port: the port to listen at."
     print "For example:"

@@ -125,7 +125,10 @@ function Ubuntu_prepare()
     echo "Ubuntu install tools success"
     return 0
 }
-Ubuntu_prepare; ret=$?; if [[ 0 -ne $ret ]]; then echo "Ubuntu prepare failed, ret=$ret"; exit $ret; fi
+# donot prepare tools, for srs-librtmp depends only gcc and g++.
+if [ $SRS_EXPORT_LIBRTMP_PROJECT = NO ]; then
+    Ubuntu_prepare; ret=$?; if [[ 0 -ne $ret ]]; then echo "Ubuntu prepare failed, ret=$ret"; exit $ret; fi
+fi
 #####################################################################################
 # for Centos, auto install tools by yum
 #####################################################################################
@@ -213,159 +216,63 @@ function Centos_prepare()
     echo "Centos install tools success"
     return 0
 }
-Centos_prepare; ret=$?; if [[ 0 -ne $ret ]]; then echo "CentOS prepare failed, ret=$ret"; exit $ret; fi
-#####################################################################################
-# for OSX, auto install tools by brew
-#####################################################################################
-OS_IS_OSX=NO
-function OSX_prepare()
-{
-    SYS_NAME=`uname -s`
-    if [ $SYS_NAME != Darwin ]; then
-        echo "This is not Darwin OSX"
-        return 0;
-    fi
-
-    OS_IS_OSX=YES
-    echo "OSX detected, install tools if needed"
-    
-    gcc --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "install gcc"
-        require_sudoer "sudo brew install gcc"
-        sudo brew install gcc; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "install gcc success"
-    fi
-    
-    g++ --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "install gcc-c++"
-        require_sudoer "sudo brew install gcc-c++"
-        sudo brew install gcc-c++; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "install gcc-c++ success"
-    fi
-    
-    make --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "install make"
-        require_sudoer "sudo brew install make"
-        sudo brew install make; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "install make success"
-    fi
-    
-    patch --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-        echo "install patch"
-        require_sudoer "sudo brew install patch"
-        sudo brew install patch; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-        echo "install patch success"
-    fi
-    
-    if [ $SRS_FFMPEG_TOOL = YES ]; then
-        automake --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-            echo "install automake"
-            require_sudoer "sudo brew install automake"
-            sudo brew install automake; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "install automake success"
-        fi
-        
-        autoconf --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-            echo "install autoconf"
-            require_sudoer "sudo brew install autoconf"
-            sudo brew install autoconf; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "install autoconf success"
-        fi
-        
-        libtool --help >/dev/null 2>&1; ret=$?; if [[ 0 -ne $ret ]]; then
-            echo "install libtool"
-            require_sudoer "sudo brew install libtool"
-            sudo brew install libtool; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "install libtool success"
-        fi
-        
-        if [[ ! -f /usr/include/pcre.h ]]; then
-            echo "install pcre-devel"
-            require_sudoer "sudo brew install pcre-devel"
-            sudo brew install pcre-devel; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "install pcre-devel success"
-        fi
-        
-        if [[ ! -f /usr/include/zlib.h ]]; then
-            echo "install zlib-devel"
-            require_sudoer "sudo brew install zlib-devel"
-            sudo brew install zlib-devel; ret=$?; if [[ 0 -ne $ret ]]; then return $ret; fi
-            echo "install zlib-devel success"
-        fi
-    fi
-    
-    echo "OSX install tools success"
-    return 0
-}
-OSX_prepare; ret=$?; if [[ 0 -ne $ret ]]; then echo "OSX prepare failed, ret=$ret"; exit $ret; fi
-
+# donot prepare tools, for srs-librtmp depends only gcc and g++.
+if [ $SRS_EXPORT_LIBRTMP_PROJECT = NO ]; then
+    Centos_prepare; ret=$?; if [[ 0 -ne $ret ]]; then echo "CentOS prepare failed, ret=$ret"; exit $ret; fi
+fi
 
 #####################################################################################
 # st-1.9
 #####################################################################################
-# check the arm flag file, if flag changed, need to rebuild the st.
-_ST_MAKE=linux-debug
-if [ $SRS_EMBEDED_CPU = YES ]; then
-    # ok, arm specified, if the flag filed does not exists, need to rebuild.
-    if [[ -f ${SRS_OBJS}/_flag.st.arm.tmp && -f ${SRS_OBJS}/st/libst.a ]]; then
-        echo "st-1.9t for arm is ok.";
+if [ $SRS_EXPORT_LIBRTMP_PROJECT = NO ]; then
+    # check the arm flag file, if flag changed, need to rebuild the st.
+    _ST_MAKE=linux-debug
+    # memory leak for linux-optimized
+    # @see: https://github.com/winlinvip/simple-rtmp-server/issues/197
+    if [ $SRS_EMBEDED_CPU = YES ]; then
+        # ok, arm specified, if the flag filed does not exists, need to rebuild.
+        if [[ -f ${SRS_OBJS}/_flag.st.arm.tmp && -f ${SRS_OBJS}/st/libst.a ]]; then
+            echo "st-1.9t for arm is ok.";
+        else
+            # TODO: FIXME: patch the bug.
+            # patch st for arm, @see: https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SrsLinuxArm#st-arm-bug-fix
+            echo "build st-1.9t for arm"; 
+            (
+                rm -rf ${SRS_OBJS}/st-1.9 && cd ${SRS_OBJS} && 
+                unzip -q ../3rdparty/st-1.9.zip && cd st-1.9 && 
+                patch -p0 < ../../3rdparty/patches/1.st.arm.patch &&
+                make CC=${SrsArmCC} AR=${SrsArmAR} LD=${SrsArmLD} RANDLIB=${SrsArmRANDLIB} \
+                    EXTRA_CFLAGS="-DMD_HAVE_EPOLL" ${_ST_MAKE} &&
+                cd .. && rm -rf st && ln -sf st-1.9/obj st &&
+                cd .. && touch ${SRS_OBJS}/_flag.st.arm.tmp
+            )
+        fi
     else
-        # TODO: FIXME: patch the bug.
-        # patch st for arm, @see: https://github.com/winlinvip/simple-rtmp-server/wiki/v1_CN_SrsLinuxArm#st-arm-bug-fix
-        echo "build st-1.9t for arm"; 
-        (
-            rm -rf ${SRS_OBJS}/st-1.9 && cd ${SRS_OBJS} && 
-            unzip -q ../3rdparty/st-1.9.zip && cd st-1.9 && 
-            patch -p0 < ../../3rdparty/patches/1.st.arm.patch &&
-            make CC=${SrsArmCC} AR=${SrsArmAR} LD=${SrsArmLD} RANDLIB=${SrsArmRANDLIB} EXTRA_CFLAGS="-DMD_HAVE_EPOLL" ${_ST_MAKE} &&
-            cd .. && rm -rf st && ln -sf st-1.9/obj st &&
-            cd .. && touch ${SRS_OBJS}/_flag.st.arm.tmp
-        )
+        if [[ ! -f ${SRS_OBJS}/_flag.st.arm.tmp && -f ${SRS_OBJS}/st/libst.a ]]; then
+            echo "st-1.9t is ok.";
+        else
+            echo "build st-1.9t"; 
+            (
+                rm -rf ${SRS_OBJS}/st-1.9 && cd ${SRS_OBJS} && 
+                unzip -q ../3rdparty/st-1.9.zip && cd st-1.9 && 
+                make ${_ST_MAKE} EXTRA_CFLAGS="-DMD_HAVE_EPOLL" &&
+                cd .. && rm -rf st && ln -sf st-1.9/obj st &&
+                cd .. && rm -f ${SRS_OBJS}/_flag.st.arm.tmp
+            )
+        fi
     fi
-else
-    if [ $SRS_OSX = YES ]; then 
-        _ST_MAKE=darwin-debug
-    fi
-    if [[ ! -f ${SRS_OBJS}/_flag.st.arm.tmp && -f ${SRS_OBJS}/st/libst.a ]]; then
-        echo "st-1.9t is ok.";
-    else
-        echo "build st-1.9t"; 
-        (
-            rm -rf ${SRS_OBJS}/st-1.9 && cd ${SRS_OBJS} && 
-            unzip -q ../3rdparty/st-1.9.zip && cd st-1.9 && 
-            echo "we alaways patch the st, for we may build srs under arm directly" &&
-            echo "the 1.st.arm.patch is ok for x86 because it's only modify code under macro linux arm" &&
-            patch -p0 < ../../3rdparty/patches/1.st.arm.patch &&
-            make ${_ST_MAKE} &&
-            cd .. && rm -rf st && ln -sf st-1.9/obj st &&
-            cd .. && rm -f ${SRS_OBJS}/_flag.st.arm.tmp
-        )
-    fi
+    # check status
+    ret=$?; if [[ $ret -ne 0 ]]; then echo "build st-1.9 failed, ret=$ret"; exit $ret; fi
+    if [ ! -f ${SRS_OBJS}/st/libst.a ]; then echo "build st-1.9 static lib failed."; exit -1; fi
 fi
-# check status
-ret=$?; if [[ $ret -ne 0 ]]; then echo "build st-1.9 failed, ret=$ret"; exit $ret; fi
-if [ ! -f ${SRS_OBJS}/st/libst.a ]; then echo "build st-1.9 static lib failed."; exit -1; fi
 
 #####################################################################################
 # http-parser-2.1
 #####################################################################################
 # check the arm flag file, if flag changed, need to rebuild the st.
 if [ $SRS_HTTP_PARSER = YES ]; then
-    # for osx(darwin), donot use sed.
-    if [ $SRS_OSX = YES ]; then 
-        if [[ -f ${SRS_OBJS}/hp/http_parser.h && -f ${SRS_OBJS}/hp/libhttp_parser.a ]]; then
-            echo "http-parser-2.1 is ok.";
-        else
-            echo "build http-parser-2.1 for osx(darwin)";
-            (
-                rm -rf ${SRS_OBJS}/http-parser-2.1 && cd ${SRS_OBJS} && unzip -q ../3rdparty/http-parser-2.1.zip && 
-                cd http-parser-2.1 && 
-                make package &&
-                cd .. && rm -rf hp && ln -sf http-parser-2.1 hp
-            )
-        fi
     # ok, arm specified, if the flag filed does not exists, need to rebuild.
-    elif [ $SRS_EMBEDED_CPU = YES ]; then
+    if [ $SRS_EMBEDED_CPU = YES ]; then
         if [[ -f ${SRS_OBJS}/_flag.st.hp.tmp && -f ${SRS_OBJS}/hp/http_parser.h && -f ${SRS_OBJS}/hp/libhttp_parser.a ]]; then
             echo "http-parser-2.1 for arm is ok.";
         else
@@ -436,7 +343,9 @@ function write_nginx_html5()
 END
 }
 # create the nginx dir, for http-server if not build nginx
-mkdir -p ${SRS_OBJS}/nginx
+if [ $SRS_EXPORT_LIBRTMP_PROJECT = NO ]; then
+    mkdir -p ${SRS_OBJS}/nginx
+fi
 # make nginx
 __SRS_BUILD_NGINX=NO; if [ $SRS_EMBEDED_CPU = NO ]; then if [ $SRS_NGINX = YES ]; then __SRS_BUILD_NGINX=YES; fi fi
 if [ $__SRS_BUILD_NGINX = YES ]; then
@@ -462,31 +371,34 @@ if [ $__SRS_BUILD_NGINX = YES ]; then
     sed -i "s/^.user  nobody;/user `whoami`;/g" ${SRS_OBJS}/nginx/conf/nginx.conf
 fi
 
-# create forward dir
-mkdir -p ${SRS_OBJS}/nginx/html/live &&
-mkdir -p ${SRS_OBJS}/nginx/html/forward/live
+# the demo dir.
+if [ $SRS_EXPORT_LIBRTMP_PROJECT = NO ]; then
+    # create forward dir
+    mkdir -p ${SRS_OBJS}/nginx/html/live &&
+    mkdir -p ${SRS_OBJS}/nginx/html/forward/live
 
-# generate default html pages for android.
-html_file=${SRS_OBJS}/nginx/html/live/demo.html && hls_stream=demo.m3u8 && write_nginx_html5
-html_file=${SRS_OBJS}/nginx/html/live/livestream.html && hls_stream=livestream.m3u8 && write_nginx_html5
-html_file=${SRS_OBJS}/nginx/html/live/livestream_ld.html && hls_stream=livestream_ld.m3u8 && write_nginx_html5
-html_file=${SRS_OBJS}/nginx/html/live/livestream_sd.html && hls_stream=livestream_sd.m3u8 && write_nginx_html5
-html_file=${SRS_OBJS}/nginx/html/forward/live/livestream.html && hls_stream=livestream.m3u8 && write_nginx_html5
-html_file=${SRS_OBJS}/nginx/html/forward/live/livestream_ld.html && hls_stream=livestream_ld.m3u8 && write_nginx_html5
-html_file=${SRS_OBJS}/nginx/html/forward/live/livestream_sd.html && hls_stream=livestream_sd.m3u8 && write_nginx_html5
+    # generate default html pages for android.
+    html_file=${SRS_OBJS}/nginx/html/live/demo.html && hls_stream=demo.m3u8 && write_nginx_html5
+    html_file=${SRS_OBJS}/nginx/html/live/livestream.html && hls_stream=livestream.m3u8 && write_nginx_html5
+    html_file=${SRS_OBJS}/nginx/html/live/livestream_ld.html && hls_stream=livestream_ld.m3u8 && write_nginx_html5
+    html_file=${SRS_OBJS}/nginx/html/live/livestream_sd.html && hls_stream=livestream_sd.m3u8 && write_nginx_html5
+    html_file=${SRS_OBJS}/nginx/html/forward/live/livestream.html && hls_stream=livestream.m3u8 && write_nginx_html5
+    html_file=${SRS_OBJS}/nginx/html/forward/live/livestream_ld.html && hls_stream=livestream_ld.m3u8 && write_nginx_html5
+    html_file=${SRS_OBJS}/nginx/html/forward/live/livestream_sd.html && hls_stream=livestream_sd.m3u8 && write_nginx_html5
 
-# copy players to nginx html dir.
-rm -rf ${SRS_OBJS}/nginx/html/players &&
-ln -sf `pwd`/research/players ${SRS_OBJS}/nginx/html/players &&
-rm -f ${SRS_OBJS}/nginx/crossdomain.xml &&
-ln -sf `pwd`/research/players/crossdomain.xml ${SRS_OBJS}/nginx/html/crossdomain.xml
+    # copy players to nginx html dir.
+    rm -rf ${SRS_OBJS}/nginx/html/players &&
+    ln -sf `pwd`/research/players ${SRS_OBJS}/nginx/html/players &&
+    rm -f ${SRS_OBJS}/nginx/crossdomain.xml &&
+    ln -sf `pwd`/research/players/crossdomain.xml ${SRS_OBJS}/nginx/html/crossdomain.xml
 
-# for favicon.ico
-rm -rf ${SRS_OBJS}/nginx/html/favicon.ico &&
-ln -sf `pwd`/research/api-server/static-dir/favicon.ico ${SRS_OBJS}/nginx/html/favicon.ico
+    # for favicon.ico
+    rm -rf ${SRS_OBJS}/nginx/html/favicon.ico &&
+    ln -sf `pwd`/research/api-server/static-dir/favicon.ico ${SRS_OBJS}/nginx/html/favicon.ico
 
-# nginx.html to detect whether nginx is alive
-echo "nginx is ok" > ${SRS_OBJS}/nginx/html/nginx.html
+    # nginx.html to detect whether nginx is alive
+    echo "nginx is ok" > ${SRS_OBJS}/nginx/html/nginx.html
+fi
 
 if [ $SRS_NGINX = YES ]; then
     echo "#define SRS_AUTO_NGINX" >> $SRS_AUTO_HEADERS_H
@@ -532,18 +444,20 @@ else
     echo "#undef SRS_AUTO_HTTP_CALLBACK" >> $SRS_AUTO_HEADERS_H
 fi
 
-echo "link players to cherrypy static-dir"
-rm -rf research/api-server/static-dir/players &&
-ln -sf `pwd`/research/players research/api-server/static-dir/players &&
-rm -f research/api-server/static-dir/crossdomain.xml &&
-ln -sf `pwd`/research/players/crossdomain.xml research/api-server/static-dir/crossdomain.xml &&
-rm -rf research/api-server/static-dir/live && 
-mkdir -p `pwd`/${SRS_OBJS}/nginx/html/live &&
-ln -sf `pwd`/${SRS_OBJS}/nginx/html/live research/api-server/static-dir/live &&
-rm -rf research/api-server/static-dir/forward && 
-mkdir -p `pwd`/${SRS_OBJS}/nginx/html/forward &&
-ln -sf `pwd`/${SRS_OBJS}/nginx/html/forward research/api-server/static-dir/forward
-ret=$?; if [[ $ret -ne 0 ]]; then echo "link players to cherrypy static-dir failed, ret=$ret"; exit $ret; fi
+if [ $SRS_EXPORT_LIBRTMP_PROJECT = NO ]; then
+    echo "link players to cherrypy static-dir"
+    rm -rf research/api-server/static-dir/players &&
+    ln -sf `pwd`/research/players research/api-server/static-dir/players &&
+    rm -f research/api-server/static-dir/crossdomain.xml &&
+    ln -sf `pwd`/research/players/crossdomain.xml research/api-server/static-dir/crossdomain.xml &&
+    rm -rf research/api-server/static-dir/live && 
+    mkdir -p `pwd`/${SRS_OBJS}/nginx/html/live &&
+    ln -sf `pwd`/${SRS_OBJS}/nginx/html/live research/api-server/static-dir/live &&
+    rm -rf research/api-server/static-dir/forward && 
+    mkdir -p `pwd`/${SRS_OBJS}/nginx/html/forward &&
+    ln -sf `pwd`/${SRS_OBJS}/nginx/html/forward research/api-server/static-dir/forward
+    ret=$?; if [[ $ret -ne 0 ]]; then echo "link players to cherrypy static-dir failed, ret=$ret"; exit $ret; fi
+fi
 
 #####################################################################################
 # generate demo index.html
@@ -570,18 +484,6 @@ fi
 # extra configure options
 CONFIGURE_TOOL="./config"
 EXTRA_CONFIGURE=""
-if [ $SRS_OSX = YES ]; then
-    CONFIGURE_TOOL="./Configure"
-    arch=`uname -m` && echo "OSX $arch";
-    if [ $arch = x86_64 ]; then
-        echo "configure 64bit openssl";
-        EXTRA_CONFIGURE=darwin64-x86_64-cc
-    else
-        echo "configure 32bit openssl";
-        EXTRA_CONFIGURE=darwin-i386-cc
-    fi
-    echo "openssl extra config: $CONFIGURE_TOOL $EXTRA_CONFIGURE"
-fi
 if [ $SRS_EMBEDED_CPU = YES ]; then
     CONFIGURE_TOOL="./Configure"
 fi
@@ -695,21 +597,23 @@ fi
 #####################################################################################
 # build research code, librtmp
 #####################################################################################
-if [ $SRS_RESEARCH = YES ]; then
-    mkdir -p ${SRS_OBJS}/research
+if [ $SRS_EXPORT_LIBRTMP_PROJECT = NO ]; then
+    if [ $SRS_RESEARCH = YES ]; then
+        mkdir -p ${SRS_OBJS}/research
 
-    (cd research/hls && make ${SRS_JOBS} && mv ts_info ../../${SRS_OBJS}/research)
-    ret=$?; if [[ $ret -ne 0 ]]; then echo "build research/hls failed, ret=$ret"; exit $ret; fi
+        (cd ${SRS_WORKDIR}/research/hls && make ${SRS_JOBS} && mv ts_info ../../${SRS_OBJS_DIR}/research)
+        ret=$?; if [[ $ret -ne 0 ]]; then echo "build research/hls failed, ret=$ret"; exit $ret; fi
 
-    (cd research/ffempty && make ${SRS_JOBS} && mv ffempty ../../${SRS_OBJS}/research)
-    ret=$?; if [[ $ret -ne 0 ]]; then echo "build research/ffempty failed, ret=$ret"; exit $ret; fi
+        (cd research/ffempty && make ${SRS_JOBS} && mv ffempty ../../${SRS_OBJS_DIR}/research)
+        ret=$?; if [[ $ret -ne 0 ]]; then echo "build research/ffempty failed, ret=$ret"; exit $ret; fi
+    fi
 fi
 
 if [ $SRS_LIBRTMP = YES ]; then
     mkdir -p ${SRS_OBJS}/research
     
     # librtmp
-    (cd research/librtmp && mkdir -p objs && ln -sf `pwd`/objs ../../${SRS_OBJS}/research/librtmp)
+    (cd ${SRS_WORKDIR}/research/librtmp && mkdir -p objs && ln -sf `pwd`/objs ../../${SRS_OBJS_DIR}/research/librtmp)
     ret=$?; if [[ $ret -ne 0 ]]; then echo "link research/librtmp failed, ret=$ret"; exit $ret; fi
 fi
 
